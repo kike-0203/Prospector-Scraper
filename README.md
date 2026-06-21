@@ -13,3 +13,4 @@
 
 ![Dashboard](docs/pantalla_flujos.jpg)
 ![Dashboard](docs/flujo_1.jpg)
+![Dashboard](docs/iphone.jpg)
