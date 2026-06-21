@@ -1,0 +1,1093 @@
+{
+  "name": "01_Bot-Scraper-DB",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Procesar datos desde Webhook, Code de prueba o app Python\nconst input = $input.first().json;\n\n// Soporta ambos formatos:\n// 1) { body: {...} }\n// 2) { hoja, nicho, alcaldia... }\nconst data = input.body || input;\n\n// Extraer valores\nconst hoja = data.hoja || '';\nconst url_sheets = data.url_sheets || '';\nconst webhook_callback = data.webhook_callback || '';\n\nconst nicho = data.nicho || '';\nconst alcaldia = data.alcaldia || '';\nconst ciudad = data.ciudad || '';\nconst cp = data.cp || '';\n\nconst accion = data.accion || 'iniciar_scraping';\n\n// Google Sheets ya es opcional\nconst documentId = url_sheets\n  ? (url_sheets.match(/\\/d\\/([a-zA-Z0-9-_]+)/)?.[1] || '')\n  : '';\n\nreturn [\n  {\n    json: {\n      hoja,\n      documentId,\n      webhook_callback,\n      nicho,\n      alcaldia,\n      ciudad,\n      cp,\n      accion\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        -544
+      ],
+      "id": "40a732fb-7eab-404b-8836-898612235421",
+      "name": "CONFIG_LeerParametros"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "949bfb90-b5a4-40e6-9ef2-a603450e5569",
+              "leftValue": "={{ $json.estado }}",
+              "rightValue": "pendiente",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2208,
+        96
+      ],
+      "id": "7ba9b850-3e6f-4c0b-9a47-75c5dcabc895",
+      "name": "IF_BusquedaPendiente"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -64,
+        464
+      ],
+      "id": "21e256ff-f08a-40f0-b730-eff1aa203d30",
+      "name": "LOOP_Busquedas"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://places.googleapis.com/v1/places:searchText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Goog-Api-Key",
+              "value": "AIzaSyAXQoIRp0TJKKh-k3WhJiSlckSDGnnYjPM"
+            },
+            {
+              "name": "X-Goog-FieldMask",
+              "value": "places.displayName,places.formattedAddress,places.websiteUri,places.nationalPhoneNumber,places.rating,places.userRatingCount,places.types"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"textQuery\": \"{{$json.combinacion}}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        384,
+        544
+      ],
+      "id": "fb047fd9-023f-4dba-8f3c-d93b5dc4470f",
+      "name": "GOOGLE_PlacesBuscar"
+    },
+    {
+      "parameters": {
+        "jsCode": "const places = $json.places || [];\n\nreturn places.map(place => {\n  const nombre = place.displayName?.text || \"\";\n  const telefono = place.nationalPhoneNumber || \"\";\n  const direccion = place.formattedAddress || \"\";\n  const website = place.websiteUri || \"\";\n\n  const rating = place.rating || 0;\n  const reviews = place.userRatingCount || 0;\n\n  const tipos = place.types || [];\n\n  let telefono_limpio = telefono.replace(/\\D/g, \"\");\n\n  if (telefono_limpio.length === 10) {\n    telefono_limpio = \"52\" + telefono_limpio;\n  }\n\n  const wa_link = telefono_limpio\n    ? `https://wa.me/${telefono_limpio}`\n    : \"\";\n\n  return {\n    json: {\n      nombre,\n      telefono,\n      direccion,\n      telefono_limpio,\n      wa_link,\n      website,\n      rating,\n      reviews,\n      tipos: tipos.join(\",\"),\n\n      // BOOLEANOS REALES\n      tiene_web: !!website,\n      tiene_whatsapp: false,\n      tiene_email: false,\n      tiene_facebook: false,\n      tiene_instagram: false,\n      tiene_bot: false,\n\n      // CAMPOS PARA FLUJOS FUTUROS\n      facebook: \"\",\n      instagram: \"\",\n      whatsapp_web: \"\",\n      bot_detectado: \"\",\n      tipo_url: \"\",\n      scraping_web_estado: \"pendiente\"\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        544
+      ],
+      "id": "497939bc-95a8-46da-b046-b73a11942d5b",
+      "name": "PLACES_NormalizarResultados"
+    },
+    {
+      "parameters": {
+        "amount": 4
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2160,
+        560
+      ],
+      "id": "54fa0c53-63ac-43a6-a144-18a15cfdf9b1",
+      "name": "WAIT_EntreBusquedas",
+      "webhookId": "df07a92a-73e6-46f5-ac04-44f53cddb6a5"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8091/api/collections/leads/records",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "campana_id",
+              "value": "={{ $('LOOP_Busquedas').item.json.campana_id }}"
+            },
+            {
+              "name": "nombre",
+              "value": "={{ $('IF_TieneTelefono').item.json.nombre }}"
+            },
+            {
+              "name": "direccion",
+              "value": "={{ $('IF_TieneTelefono').item.json.direccion }}"
+            },
+            {
+              "name": "telefono",
+              "value": "={{ $('IF_TieneTelefono').item.json.telefono }}"
+            },
+            {
+              "name": "telefono_limpio",
+              "value": "={{ $('IF_TieneTelefono').item.json.telefono_limpio }}"
+            },
+            {
+              "name": "whatsapp_link",
+              "value": "={{ $('IF_TieneTelefono').item.json.wa_link }}"
+            },
+            {
+              "name": "estado",
+              "value": "nuevo"
+            },
+            {
+              "name": "score",
+              "value": "{{ 0 }}"
+            },
+            {
+              "name": "origen_busqueda",
+              "value": "={{ $('LOOP_Busquedas').item.json.combinacion }}"
+            },
+            {
+              "name": "website",
+              "value": "={{ $('IF_TieneTelefono').item.json.website }}"
+            },
+            {
+              "name": "tiene_web",
+              "value": "={{ $('IF_TieneTelefono').item.json.tiene_web }}"
+            },
+            {
+              "name": "rating",
+              "value": "={{ $('IF_TieneTelefono').item.json.rating }}"
+            },
+            {
+              "name": "reviews",
+              "value": "={{ $('IF_TieneTelefono').item.json.reviews }}"
+            },
+            {
+              "name": "tipos",
+              "value": "={{ $('IF_TieneTelefono').item.json.tipos }}"
+            },
+            {
+              "name": "tiene_facebook",
+              "value": "={{ false }}"
+            },
+            {
+              "name": "tiene_instagram",
+              "value": "={{ false }}"
+            },
+            {
+              "name": "tiene_whatsapp",
+              "value": "={{ false }}"
+            },
+            {
+              "name": "tiene_email",
+              "value": "={{ false }}"
+            },
+            {
+              "name": "tiene_bot",
+              "value": "={{ false }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1712,
+        512
+      ],
+      "id": "5c7a7f5b-07d0-42e2-a148-bd29fb756bd8",
+      "name": "PB_CrearLead"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8091/api/collections/campanas/records",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "nombre",
+              "value": "={{ $('CONFIG_LeerParametros').first().json.hoja }}"
+            },
+            {
+              "name": "nicho",
+              "value": "={{ $('CONFIG_LeerParametros').first().json.nicho }}"
+            },
+            {
+              "name": "alcaldia",
+              "value": "={{ $('CONFIG_LeerParametros').first().json.alcaldia }}"
+            },
+            {
+              "name": "ciudad",
+              "value": "={{ $('CONFIG_LeerParametros').first().json.ciudad }}"
+            },
+            {
+              "name": "cp",
+              "value": "={{ $('CONFIG_LeerParametros').first().json.cp }}"
+            },
+            {
+              "name": "estado",
+              "value": "scrapeando"
+            },
+            {
+              "name": "total_busquedas",
+              "value": "={{ $('CONFIG_LeerParametros').first().json.cp.split(',').map(cp => cp.trim()).filter(cp => cp).length }}"
+            },
+            {
+              "name": "busquedas_procesadas",
+              "value": "0"
+            },
+            {
+              "name": "busquedas_error",
+              "value": "0"
+            },
+            {
+              "name": "total_leads",
+              "value": "0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        272,
+        -96
+      ],
+      "id": "bb3030ea-9186-49da-9836-ab97d1920043",
+      "name": "PB_CrearCampana"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2047f8bc-5423-4210-91cd-5c1f61b8f363",
+              "leftValue": "={{ $json.telefono_limpio }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        816,
+        528
+      ],
+      "id": "058291d9-2a9c-4815-9936-bdd3715ad3db",
+      "name": "IF_TieneTelefono"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8091/api/collections/leads/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filter",
+              "value": "=telefono_limpio=\"{{ $json.telefono_limpio }}\""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1088,
+        464
+      ],
+      "id": "0249f44d-1b2f-4e80-889b-b97b8655677b",
+      "name": "PB_BuscarLeadPorTelefono"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c8e51db9-9f92-49c4-a016-fb0b890b771a",
+              "leftValue": "={{ $json.totalItems }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1504,
+        416
+      ],
+      "id": "49d108f5-4c9c-4185-8a99-c6fa2fb61eeb",
+      "name": "IF_LeadExiste"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8091/api/collections/busquedas/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filter",
+              "value": "=campana_id=\"{{ $('CODE_GenerarBusquedasDesdeCP').first().json.campana_id }}\" && estado=\"pendiente\""
+            },
+            {
+              "name": "sort",
+              "value": "created"
+            },
+            {
+              "name": "perPage",
+              "value": "200"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1712,
+        -64
+      ],
+      "id": "ed99e8dd-533b-46bd-8713-bab019bb5ec7",
+      "name": "PB_LeerBusquedasPendientes"
+    },
+    {
+      "parameters": {
+        "jsCode": "const busquedas = $('PB_LeerBusquedasPendientes').first().json.items || [];\n\nreturn busquedas.map(b => ({\n  json: {\n    id: b.id,\n    campana_id: b.campana_id,\n    combinacion: b.combinacion,\n    estado: b.estado\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        -64
+      ],
+      "id": "bd2496ce-bd82-4fd5-991a-26744f4211d8",
+      "name": "CODE_SepararBusquedas"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8091/api/collections/busquedas/records",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "campana_id",
+              "value": "={{ $('CODE_GenerarBusquedasDesdeCP').item.json.campana_id }}"
+            },
+            {
+              "name": "cp",
+              "value": "={{ $('CODE_GenerarBusquedasDesdeCP').item.json.cp }}"
+            },
+            {
+              "name": "combinacion",
+              "value": "={{ $('CODE_GenerarBusquedasDesdeCP').item.json.combinacion }}"
+            },
+            {
+              "name": "estado",
+              "value": "pendiente"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1472,
+        -32
+      ],
+      "id": "3711365a-9a42-4019-a3a2-e6f1fb90229c",
+      "name": "PB_CrearBusqueda"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "scraping",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        -832
+      ],
+      "id": "c6d64337-78b1-41dc-807e-db82ac198d8b",
+      "name": "WEBHOOK_IniciarProceso1",
+      "webhookId": "39ebe095-c476-4960-9f10-a6fd564d9280",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/busquedas/records/{{$json.id}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "estado",
+              "value": "procesada"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        608,
+        368
+      ],
+      "id": "51825399-976c-4099-aaea-120ac7632679",
+      "name": "PB_MarcarBusquedaProcesada"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/campanas/records/{{ $('CODE_GenerarBusquedasDesdeCP').first().json.campana_id }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "estado",
+              "value": "listo_para_enriquecer"
+            },
+            {
+              "name": "busquedas_procesadas",
+              "value": "={{$('PB_LeerBusquedasPendientes').first().json.totalItems}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        832,
+        368
+      ],
+      "id": "254b39da-9901-4e30-9c8b-f8301ac59124",
+      "name": "PB_ActualizarCampanaFinal"
+    },
+    {
+      "parameters": {
+        "jsCode": "const busquedas = $('PB_LeerBusquedasPendientes').first().json.items || [];\n\nreturn busquedas.map(b => ({\n  json: {\n    id: b.id,\n    campana_id: b.campana_id,\n    combinacion: b.combinacion,\n    estado: b.estado\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        368
+      ],
+      "id": "592fbb3c-91a7-48fe-b9cb-ab5512d8f1eb",
+      "name": "CODE_ListarBusquedasParaCerrar"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        256,
+        -544
+      ],
+      "id": "f9b7ad32-629c-4b6a-8e7f-795fadb2e86f",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8091/api/collections/campanas/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filter",
+              "value": "=nombre=\"{{ $json.hoja }}\""
+            },
+            {
+              "name": "perPage",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1040,
+        -544
+      ],
+      "id": "0eb8e4be-c655-481b-b2e0-90ff6a50e361",
+      "name": "PB_BuscarCampanaExistente"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    hoja: 'tamales_coyoacan_04400_04410_test_b',\n    nicho: 'Tamales',\n    alcaldia: 'Coyoacan',\n    ciudad: 'CDMX',\n    cp: '04400,04410'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        -544
+      ],
+      "id": "c509173b-1ad7-4c8d-bcbb-e399f4b62616",
+      "name": "CODE_DatosCampanaPrueba"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b738b0fd-509c-4841-8890-df84cdbe6698",
+              "leftValue": "={{ $json.totalItems }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -64,
+        -64
+      ],
+      "id": "6beeaf15-defa-4da8-82d6-6c5f5d243fe4",
+      "name": "IF_ExisteCampana"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('CONFIG_LeerParametros').first().json;\nconst campana = $json.items[0];\n\nreturn [{\n  json: {\n    ...config,\n    campana_id: campana.id,\n    campana_existente: true\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        -304
+      ],
+      "id": "bd3da7d9-e68c-42c4-8b69-7a853e1d9631",
+      "name": "CODE_UsarCampanaExistente"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('CONFIG_LeerParametros').first().json;\n\nreturn [{\n  json: {\n    ...config,\n    campana_id: $json.id,\n    campana_existente: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -96
+      ],
+      "id": "519deacd-3309-4965-ae68-d973bbb1d580",
+      "name": "CODE_UsarCampanaNueva"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8091/api/collections/busquedas/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filter",
+              "value": "=campana_id=\"{{ $json.campana_id }}\" && combinacion=\"{{ $json.combinacion }}\""
+            },
+            {
+              "name": "perPage",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1024,
+        -96
+      ],
+      "id": "98d26772-2d99-41df-a381-9c5a90a9df4a",
+      "name": "PB_BuscarBusquedaExistente"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "be080a18-1538-4783-ad8c-f291cda377a4",
+              "leftValue": "={{ $json.totalItems }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1232,
+        -96
+      ],
+      "id": "ef5c391a-fc51-4ab7-9e1f-550d52665c0c",
+      "name": "IF_ExisteBusqueda"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('CODE_GenerarBusquedasDesdeCP').item.json;\n\nreturn [{\n  json: {\n    ...original,\n    busqueda_existente: true\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        -224
+      ],
+      "id": "f46d538c-60a2-4cc4-b71c-4f0c91d57c73",
+      "name": "CODE_UsarBusquedaExistente"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\n// Si ya viene como búsqueda individual, solo la dejamos pasar\nif (data.campana_id && data.cp && data.combinacion) {\n  return $input.all();\n}\n\n// Si viene como campaña completa, separa los CP\nconst cps = String(data.cp || '')\n  .split(',')\n  .map(cp => cp.trim())\n  .filter(Boolean);\n\nreturn cps.map(cp => ({\n  json: {\n    campana_id: data.campana_id,\n    cp,\n    combinacion: `${data.nicho} cerca de ${cp} ${data.alcaldia} ${data.ciudad}`,\n    estado: 'pendiente'\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        -192
+      ],
+      "id": "6faa1877-28a3-4034-9067-dc3ffc659e15",
+      "name": "CODE_GenerarBusquedasDesdeCP"
+    }
+  ],
+  "pinData": {
+    "WEBHOOK_IniciarProceso1": [
+      {
+        "json": {
+          "headers": {
+            "host": "epithetic-ettie-overmerciful.ngrok-free.dev",
+            "user-agent": "Python-urllib/3.14",
+            "content-length": "313",
+            "accept-encoding": "identity",
+            "content-type": "application/json",
+            "x-forwarded-for": "2806:107e:19:90a:a961:3423:cd78:5e59",
+            "x-forwarded-host": "epithetic-ettie-overmerciful.ngrok-free.dev",
+            "x-forwarded-proto": "https"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "hoja": "tamales_coyoacan",
+            "url_sheets": "https://docs.google.com/spreadsheets/d/1sP9b5zCgP-exWQthvNEds0x5kpGDuk9EEXyY5p5GJLs/edit?gid=0#gid=0",
+            "webhook_callback": "http://localhost:8888/webhook",
+            "accion": "iniciar_scraping",
+            "nicho": "Tamales",
+            "alcaldia": "Coyoacan",
+            "ciudad": "CDMX",
+            "cp": "04000, 04010"
+          },
+          "webhookUrl": "https://epithetic-ettie-overmerciful.ngrok-free.dev/webhook-test/scraping",
+          "executionMode": "test"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "CONFIG_LeerParametros": {
+      "main": [
+        [
+          {
+            "node": "PB_BuscarCampanaExistente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_BusquedaPendiente": {
+      "main": [
+        [
+          {
+            "node": "LOOP_Busquedas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LOOP_Busquedas": {
+      "main": [
+        [
+          {
+            "node": "CODE_ListarBusquedasParaCerrar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GOOGLE_PlacesBuscar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GOOGLE_PlacesBuscar": {
+      "main": [
+        [
+          {
+            "node": "PLACES_NormalizarResultados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PLACES_NormalizarResultados": {
+      "main": [
+        [
+          {
+            "node": "IF_TieneTelefono",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAIT_EntreBusquedas": {
+      "main": [
+        [
+          {
+            "node": "LOOP_Busquedas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_CrearLead": {
+      "main": [
+        [
+          {
+            "node": "WAIT_EntreBusquedas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_CrearCampana": {
+      "main": [
+        [
+          {
+            "node": "CODE_UsarCampanaNueva",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_TieneTelefono": {
+      "main": [
+        [
+          {
+            "node": "PB_BuscarLeadPorTelefono",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_BuscarLeadPorTelefono": {
+      "main": [
+        [
+          {
+            "node": "IF_LeadExiste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_LeadExiste": {
+      "main": [
+        [
+          {
+            "node": "WAIT_EntreBusquedas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PB_CrearLead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_LeerBusquedasPendientes": {
+      "main": [
+        [
+          {
+            "node": "CODE_SepararBusquedas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_SepararBusquedas": {
+      "main": [
+        [
+          {
+            "node": "IF_BusquedaPendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_CrearBusqueda": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerBusquedasPendientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WEBHOOK_IniciarProceso1": {
+      "main": [
+        []
+      ]
+    },
+    "PB_MarcarBusquedaProcesada": {
+      "main": [
+        [
+          {
+            "node": "PB_ActualizarCampanaFinal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_ListarBusquedasParaCerrar": {
+      "main": [
+        [
+          {
+            "node": "PB_MarcarBusquedaProcesada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "CODE_DatosCampanaPrueba",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_BuscarCampanaExistente": {
+      "main": [
+        [
+          {
+            "node": "IF_ExisteCampana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_DatosCampanaPrueba": {
+      "main": [
+        [
+          {
+            "node": "CONFIG_LeerParametros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_ExisteCampana": {
+      "main": [
+        [
+          {
+            "node": "CODE_UsarCampanaExistente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PB_CrearCampana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_UsarCampanaNueva": {
+      "main": [
+        [
+          {
+            "node": "CODE_GenerarBusquedasDesdeCP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_UsarCampanaExistente": {
+      "main": [
+        [
+          {
+            "node": "CODE_GenerarBusquedasDesdeCP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_BuscarBusquedaExistente": {
+      "main": [
+        [
+          {
+            "node": "IF_ExisteBusqueda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_ExisteBusqueda": {
+      "main": [
+        [
+          {
+            "node": "CODE_UsarBusquedaExistente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PB_CrearBusqueda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_UsarBusquedaExistente": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerBusquedasPendientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_GenerarBusquedasDesdeCP": {
+      "main": [
+        [
+          {
+            "node": "PB_BuscarBusquedaExistente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "14f716a7-b864-4b20-b27b-70d82168584e",
+  "meta": {
+    "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
+  },
+  "id": "n_s_0M3C3BBcFzA29Ibfg",
+  "tags": []
+}

@@ -1,0 +1,802 @@
+{
+  "name": "02_ScrapingWebsites",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        0
+      ],
+      "id": "91acd8a9-5dc7-4272-b586-e513ded11e11",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        384,
+        0
+      ],
+      "id": "9885c563-9226-4ff4-a0ab-a92a2246ebd1",
+      "name": "LOOP_Leads"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8091/api/collections/leads/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "page",
+              "value": "1"
+            },
+            {
+              "name": "perPage",
+              "value": "100"
+            },
+            {
+              "name": "sort",
+              "value": "created"
+            },
+            {
+              "name": "filter",
+              "value": "website != \"\" && tiene_web = true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -64,
+        0
+      ],
+      "id": "5ea8dfbb-1959-4b7b-9797-14f277ac2ef1",
+      "name": "PB_LeerLeadsConWeb"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const lead = $json;\n\nlet url = String(lead.website || \"\").trim().replace(/\\s+/g, \"\");\n\nlet tipo_url = \"sin_web\";\n\nif (url) {\n  if (!/^https?:\\/\\//i.test(url)) {\n    url = \"https://\" + url;\n  }\n\n  const clean = url.toLowerCase();\n\n  if (clean.includes(\"instagram.com\")) {\n    tipo_url = \"instagram\";\n  } else if (clean.includes(\"facebook.com\") || clean.includes(\"fb.me\")) {\n    tipo_url = \"facebook\";\n  } else if (\n    clean.includes(\"wa.me\") ||\n    clean.includes(\"api.whatsapp.com\") ||\n    clean.includes(\"chat.whatsapp.com\")\n  ) {\n    tipo_url = \"whatsapp\";\n  } else if (\n    clean.includes(\"linktr.ee\") ||\n    clean.includes(\"linktree.com\") ||\n    clean.includes(\"beacons.ai\") ||\n    clean.includes(\"bio.link\")\n  ) {\n    tipo_url = \"linktree\";\n  } else if (\n    clean.includes(\"google.com/maps\") ||\n    clean.includes(\"maps.app.goo.gl\") ||\n    clean.includes(\"g.page\") ||\n    clean.includes(\"ubereats.com\") ||\n    clean.includes(\"rappi.com\") ||\n    clean.includes(\"didi-food.com\")\n  ) {\n    tipo_url = \"otro\";\n  } else {\n    tipo_url = \"web\";\n  }\n}\n\nreturn {\n  json: {\n    ...lead,\n    tipo_url,\n    url_clasificada: url,\n    scraping_web_estado: tipo_url === \"web\" ? \"procesando\" : \"completado\",\n\n    facebook: tipo_url === \"facebook\" ? url : lead.facebook || \"\",\n    instagram: tipo_url === \"instagram\" ? url : lead.instagram || \"\",\n    whatsapp_web: tipo_url === \"whatsapp\" ? url : lead.whatsapp_web || \"\",\n\n    tiene_web: !!lead.website,\n    tiene_facebook: tipo_url === \"facebook\" || !!lead.facebook,\n    tiene_instagram: tipo_url === \"instagram\" || !!lead.instagram,\n    tiene_whatsapp:\n  tipo_url === \"whatsapp\" ||\n  !!lead.whatsapp_web\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        80
+      ],
+      "id": "72809fbb-bdfd-4840-831d-54e2e1b927b9",
+      "name": "CODE_ClasificarURL"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.tipo_url}}",
+                    "rightValue": "web",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "89d7cffb-f672-43a3-84f4-3d2b5949385a"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "web"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3aa8e094-b43e-4edf-bfb2-b4ab372f2931",
+                    "leftValue": "={{$json.tipo_url}}",
+                    "rightValue": "facebook",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "facebook"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "e01411e9-a075-466b-8788-de91cd139dd8",
+                    "leftValue": "={{$json.tipo_url}}",
+                    "rightValue": "instagram",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "instagram"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3166e989-bb84-4ef5-a782-61deedb903dc",
+                    "leftValue": "={{$json.tipo_url}}",
+                    "rightValue": "whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "whatsapp"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "7f529d51-3931-433e-b045-4e8210a389f2",
+                    "leftValue": "={{$json.tipo_url}}",
+                    "rightValue": "sin_web",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sin_web"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        800,
+        80
+      ],
+      "id": "4b401086-41dd-485c-ac06-7b8a99d3a997",
+      "name": "SWITCH_TipoURL"
+    },
+    {
+      "parameters": {
+        "url": "={{$json.url_clasificada}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+            },
+            {
+              "name": "Accept",
+              "value": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 7000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1200,
+        -48
+      ],
+      "id": "a687114f-1784-44a7-a09b-bd14812a1313",
+      "name": "HTTP_GetWebsite",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $('LOOP_Leads').item.json;\nconst response = $input.first().json;\n\nconst hasError = !!response.error;\nconst html = hasError ? '' : (response.body || response.data || '');\n\nfunction findFirstMatch(text, pattern) {\n  const match = text.match(pattern);\n  return match ? match[0] : '';\n}\n\n// Facebook\nconst fbPattern = /https?:\\/\\/([\\w-]+\\.)?facebook\\.com\\/[^\\s\"'<>\\[\\]]+/i;\nconst fbUrl = findFirstMatch(html, fbPattern);\nconst tieneFacebook = !!fbUrl;\n\n// Instagram\nconst igPattern = /https?:\\/\\/([\\w-]+\\.)?instagram\\.com\\/[^\\s\"'<>\\[\\]]+/i;\nconst igUrl = findFirstMatch(html, igPattern);\nconst tieneInstagram = !!igUrl;\n\n// WhatsApp\nconst waPatterns = [\n  /https?:\\/\\/(wa\\.me|api\\.whatsapp\\.com|chat\\.whatsapp\\.com)[^\\s\"'<>\\[\\]]+/gi,\n  /href=[\"'](https?:\\/\\/(web\\.whatsapp\\.com|wa\\.me)[^\"']+)[\"']/gi\n];\n\nlet waUrls = [];\n\nfor (const pattern of waPatterns) {\n  const matches = html.match(pattern);\n  if (matches) waUrls.push(...matches);\n}\n\nwaUrls = waUrls.map(u => u.replace(/[\"']/g, ''));\nconst uniqueWaUrls = [...new Set(waUrls)];\n\nconst tieneWhatsappWeb =\n  uniqueWaUrls.length > 0 ||\n  /class=[\"'][^\"']*whatsapp[^\"']*[\"']/i.test(html) ||\n  /id=[\"'][^\"']*whatsapp[^\"']*[\"']/i.test(html);\n\nconst whatsappWebUrl = uniqueWaUrls[0] || '';\n\nconst botDetectado = tieneWhatsappWeb ? 'wa_bot' : '';\nconst tieneBot = botDetectado !== '';\n\n// Emails visibles y mailto\nconst emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\nconst mailtoPattern = /mailto:([^\"'?\\s<>]+)/gi;\n\nlet emails = [];\n\nemails.push(...(html.match(emailPattern) || []));\n\nlet mailtoMatch;\nwhile ((mailtoMatch = mailtoPattern.exec(html)) !== null) {\n  emails.push(mailtoMatch[1]);\n}\n\nemails = emails\n  .map(e => e.toLowerCase().trim())\n  .map(e => e.replace(/^mailto:/, ''))\n  .map(e => e.replace(/[?&].*$/, ''))\n  .filter(e =>\n    e.includes('@') &&\n    !e.includes('misitio.com') &&\n    !e.includes('example.com') &&\n    !e.includes('correo.com') &&\n    !e.includes('email.com') &&\n    !e.includes('test.com') &&\n    !e.includes('schema.org') &&\n    !e.includes('sentry') &&\n    !e.includes('wixpress') &&\n    !e.includes('wordpress') &&\n    !e.includes('domain.com')\n  );\n\nemails = [...new Set(emails)];\n\nconst emailsTexto = emails.join(', ');\n\nreturn [{\n  json: {\n    id: lead.id,\n\n    tiene_facebook: tieneFacebook,\n    facebook: fbUrl,\n\n    tiene_instagram: tieneInstagram,\n    instagram: igUrl,\n\n    tiene_whatsapp: tieneWhatsappWeb,\n    whatsapp_web: whatsappWebUrl,\n\n    tiene_email: emails.length > 0,\n    emails: emailsTexto,\n\n    tiene_bot: tieneBot,\n    bot_detectado: botDetectado,\n\n    scraping_web_estado: 'completado'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        -48
+      ],
+      "id": "34d3fc89-e3c2-4d40-8e9a-c14724e8c53e",
+      "name": "CODE_ExtraerRedesYWhatsApp"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/leads/records/{{ $json.id }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tiene_facebook",
+              "value": "={{ $json.tiene_facebook }}"
+            },
+            {
+              "name": "facebook",
+              "value": "={{ $json.facebook }}"
+            },
+            {
+              "name": "tiene_instagram",
+              "value": "={{ $json.tiene_instagram }}"
+            },
+            {
+              "name": "instagram",
+              "value": "={{ $json.instagram }}"
+            },
+            {
+              "name": "tiene_whatsapp",
+              "value": "={{ $json.tiene_whatsapp }}"
+            },
+            {
+              "name": "whatsapp_web",
+              "value": "={{ $json.whatsapp_web }}"
+            },
+            {
+              "name": "bot_detectado",
+              "value": "={{ $json.bot_detectado }}"
+            },
+            {
+              "name": "scraping_web_estado",
+              "value": "={{ $json.scraping_web_estado }}"
+            },
+            {
+              "name": "tiene_email",
+              "value": "={{ $json.tiene_email }}"
+            },
+            {
+              "name": "emails",
+              "value": "={{ $json.emails }}"
+            },
+            {
+              "name": "tiene_bot",
+              "value": "={{$json.tiene_bot}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1568,
+        -48
+      ],
+      "id": "057bc86b-d85a-4c34-af29-daf8598a0d26",
+      "name": "PB_ActualizarLead"
+    },
+    {
+      "parameters": {
+        "jsCode": "const leads = $json.items || [];\n\nreturn leads.map(lead => ({\n  json: lead\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        0
+      ],
+      "id": "2126d3f9-df51-4a56-b732-1285dd94f692",
+      "name": "CODE_SepararLeads",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/leads/records/{{$json.id}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tipo_url",
+              "value": "={{$json.tipo_url}}"
+            },
+            {
+              "name": "url_clasificada",
+              "value": "={{$json.url_clasificada}}"
+            },
+            {
+              "name": "facebook",
+              "value": "={{$json.facebook}}"
+            },
+            {
+              "name": "instagram",
+              "value": "={{$json.instagram}}"
+            },
+            {
+              "name": "whatsapp_web",
+              "value": "={{$json.whatsapp_web}}"
+            },
+            {
+              "name": "tiene_web",
+              "value": "={{$json.tiene_web}}"
+            },
+            {
+              "name": "tiene_facebook",
+              "value": "={{$json.tiene_facebook}}"
+            },
+            {
+              "name": "tiene_instagram",
+              "value": "={{$json.tiene_instagram}}"
+            },
+            {
+              "name": "tiene_whatsapp",
+              "value": "={{$json.tiene_whatsapp}}"
+            },
+            {
+              "name": "scraping_web_estado",
+              "value": "completado"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1200,
+        96
+      ],
+      "id": "47f624b9-0b27-4cd3-88f8-7573fa4e4f39",
+      "name": "PB_ActualizarLeadURL"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/leads/records/{{$json.id}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tipo_url",
+              "value": "={{$json.tipo_url}}"
+            },
+            {
+              "name": "url_clasificada",
+              "value": "={{$json.url_clasificada}}"
+            },
+            {
+              "name": "facebook",
+              "value": "={{$json.facebook}}"
+            },
+            {
+              "name": "instagram",
+              "value": "={{$json.instagram}}"
+            },
+            {
+              "name": "whatsapp_web",
+              "value": "={{$json.whatsapp_web}}"
+            },
+            {
+              "name": "tiene_web",
+              "value": "={{$json.tiene_web}}"
+            },
+            {
+              "name": "tiene_facebook",
+              "value": "={{$json.tiene_facebook}}"
+            },
+            {
+              "name": "tiene_instagram",
+              "value": "={{$json.tiene_instagram}}"
+            },
+            {
+              "name": "tiene_whatsapp",
+              "value": "={{$json.tiene_whatsapp}}"
+            },
+            {
+              "name": "scraping_web_estado",
+              "value": "completado"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1200,
+        240
+      ],
+      "id": "5f3a8dea-defa-4847-8f3a-846bd711eff9",
+      "name": "PB_ActualizarLeadURL1"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/leads/records/{{$json.id}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tipo_url",
+              "value": "={{$json.tipo_url}}"
+            },
+            {
+              "name": "url_clasificada",
+              "value": "={{$json.url_clasificada}}"
+            },
+            {
+              "name": "facebook",
+              "value": "={{$json.facebook}}"
+            },
+            {
+              "name": "instagram",
+              "value": "={{$json.instagram}}"
+            },
+            {
+              "name": "whatsapp_web",
+              "value": "={{$json.whatsapp_web}}"
+            },
+            {
+              "name": "tiene_web",
+              "value": "={{$json.tiene_web}}"
+            },
+            {
+              "name": "tiene_facebook",
+              "value": "={{$json.tiene_facebook}}"
+            },
+            {
+              "name": "tiene_instagram",
+              "value": "={{$json.tiene_instagram}}"
+            },
+            {
+              "name": "tiene_whatsapp",
+              "value": "={{$json.tiene_whatsapp}}"
+            },
+            {
+              "name": "scraping_web_estado",
+              "value": "completado"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1216,
+        384
+      ],
+      "id": "b22d363e-6b32-4851-9a47-3cd007456b97",
+      "name": "PB_ActualizarLeadURL2"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/leads/records/{{$json.id}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tipo_url",
+              "value": "={{$json.tipo_url}}"
+            },
+            {
+              "name": "url_clasificada",
+              "value": "={{$json.url_clasificada}}"
+            },
+            {
+              "name": "facebook",
+              "value": "={{$json.facebook}}"
+            },
+            {
+              "name": "instagram",
+              "value": "={{$json.instagram}}"
+            },
+            {
+              "name": "whatsapp_web",
+              "value": "={{$json.whatsapp_web}}"
+            },
+            {
+              "name": "tiene_web",
+              "value": "={{$json.tiene_web}}"
+            },
+            {
+              "name": "tiene_facebook",
+              "value": "={{$json.tiene_facebook}}"
+            },
+            {
+              "name": "tiene_instagram",
+              "value": "={{$json.tiene_instagram}}"
+            },
+            {
+              "name": "tiene_whatsapp",
+              "value": "={{$json.tiene_whatsapp}}"
+            },
+            {
+              "name": "scraping_web_estado",
+              "value": "completado"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1216,
+        528
+      ],
+      "id": "44ba5b0b-1c5c-4542-876d-4f3fe099524f",
+      "name": "PB_ActualizarLeadURL3"
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1840,
+        528
+      ],
+      "id": "824251f4-ee74-468b-b5e0-faa6c0882dbc",
+      "name": "Wait1",
+      "webhookId": "6bcf5780-7a88-469d-965a-739bb2b91261"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerLeadsConWeb",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LOOP_Leads": {
+      "main": [
+        [],
+        [
+          {
+            "node": "CODE_ClasificarURL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_LeerLeadsConWeb": {
+      "main": [
+        [
+          {
+            "node": "CODE_SepararLeads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_ClasificarURL": {
+      "main": [
+        [
+          {
+            "node": "SWITCH_TipoURL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SWITCH_TipoURL": {
+      "main": [
+        [
+          {
+            "node": "HTTP_GetWebsite",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PB_ActualizarLeadURL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PB_ActualizarLeadURL1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PB_ActualizarLeadURL2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PB_ActualizarLeadURL3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_GetWebsite": {
+      "main": [
+        [
+          {
+            "node": "CODE_ExtraerRedesYWhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_ExtraerRedesYWhatsApp": {
+      "main": [
+        [
+          {
+            "node": "PB_ActualizarLead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_ActualizarLead": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_SepararLeads": {
+      "main": [
+        [
+          {
+            "node": "LOOP_Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_ActualizarLeadURL": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_ActualizarLeadURL1": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_ActualizarLeadURL2": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_ActualizarLeadURL3": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "LOOP_Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f46d6cb1-ca28-4789-95b4-7eb13a8ddfe3",
+  "meta": {
+    "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
+  },
+  "id": "g0oYDWuGJtG69TKXyQimJ",
+  "tags": []
+}

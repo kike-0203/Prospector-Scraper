@@ -1,0 +1,233 @@
+{
+  "name": "03_DiagnosticarLead",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "a193ac61-b487-4a9a-85b1-a3b29adf2ba1",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8091/api/collections/leads/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "page",
+              "value": "1"
+            },
+            {
+              "name": "perPage",
+              "value": "100"
+            },
+            {
+              "name": "sort",
+              "value": "created"
+            },
+            {
+              "name": "filter",
+              "value": "estado=\"nuevo\" && nivel_oportunidad=\"\""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "cf4cc802-b8aa-4358-b6a7-1ffd8694079e",
+      "name": "PB_LeerLeadsParaDiagnostico"
+    },
+    {
+      "parameters": {
+        "jsCode": "const leads = $json.items || [];\n\nreturn leads.map(lead => ({\n  json: lead\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "0add1817-7afc-455f-9ea0-494c1c41d26c",
+      "name": "CODE_SepararLeads"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        624,
+        0
+      ],
+      "id": "f75035bb-268e-406e-ad6e-a590cd566e5b",
+      "name": "LOOP_Leads"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $json;\n\nconst oportunidades = [];\n\nconst tieneWeb = lead.tiene_web === true;\nconst tieneFacebook = lead.tiene_facebook === true;\nconst tieneInstagram = lead.tiene_instagram === true;\nconst tieneBot = lead.tiene_bot === true;\nconst tieneEmail = lead.tiene_email === true;\n\n// WEB\n\nif (!tieneWeb) {\n  oportunidades.push(\"pagina_web\");\n}\n\nif (tieneWeb) {\n  oportunidades.push(\"mejorar_web\");\n}\n\n// REDES\n\nif (!tieneFacebook && !tieneInstagram) {\n  oportunidades.push(\"redes_sociales\");\n}\n\nif (tieneFacebook || tieneInstagram) {\n  oportunidades.push(\"marketing_digital\");\n}\n\n// WHATSAPP\n\nif (!tieneBot) {\n  oportunidades.push(\"whatsapp_ia\");\n}\n\nif (tieneBot) {\n  oportunidades.push(\"optimizar_bot\");\n}\n\n// EMAIL\n\nif (!tieneEmail) {\n  oportunidades.push(\"captura_leads\");\n}\n\n// NIVEL\n\nlet nivel_oportunidad = \"baja\";\n\nif (oportunidades.length >= 4) {\n  nivel_oportunidad = \"alta\";\n} else if (oportunidades.length >= 2) {\n  nivel_oportunidad = \"media\";\n}\n\n// SCORE\n\nlet score = 20;\n\nif (nivel_oportunidad === \"media\") {\n  score = 50;\n}\n\nif (nivel_oportunidad === \"alta\") {\n  score = 80;\n}\n\n// ENFOQUE PRINCIPAL\n\nlet mensaje_enfoque = \"\";\n\nif (oportunidades.includes(\"whatsapp_ia\")) {\n  mensaje_enfoque = \"whatsapp_ia\";\n} else if (oportunidades.includes(\"optimizar_bot\")) {\n  mensaje_enfoque = \"optimizar_bot\";\n} else if (oportunidades.includes(\"pagina_web\")) {\n  mensaje_enfoque = \"pagina_web\";\n} else if (oportunidades.includes(\"mejorar_web\")) {\n  mensaje_enfoque = \"mejorar_web\";\n} else if (oportunidades.includes(\"redes_sociales\")) {\n  mensaje_enfoque = \"redes_sociales\";\n} else if (oportunidades.includes(\"marketing_digital\")) {\n  mensaje_enfoque = \"marketing_digital\";\n}\n\nreturn [{\n  json: {\n    ...lead,\n    oportunidades: oportunidades.join(\", \"),\n    nivel_oportunidad,\n    mensaje_enfoque,\n    score\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        96
+      ],
+      "id": "4e325edc-b338-4898-ae89-f1e5ad1b6562",
+      "name": "CODE_DiagnosticarLead"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/leads/records/{{$json.id}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "oportunidades",
+              "value": "={{$json.oportunidades}}"
+            },
+            {
+              "name": "nivel_oportunidad",
+              "value": "={{$json.nivel_oportunidad}}"
+            },
+            {
+              "name": "mensaje_enfoque",
+              "value": "={{$json.mensaje_enfoque}}"
+            },
+            {
+              "name": "score",
+              "value": "={{$json.score}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1040,
+        96
+      ],
+      "id": "ca6afcf5-73d3-4824-b578-116ee1233069",
+      "name": "PB_ActualizarDiagnostico"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1264,
+        128
+      ],
+      "id": "aec8cf19-f5ff-4fdf-8af1-fbc9744a8661",
+      "name": "Wait",
+      "webhookId": "d4202e0e-931c-4f5c-88f6-a0aeb36dd095"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerLeadsParaDiagnostico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_LeerLeadsParaDiagnostico": {
+      "main": [
+        [
+          {
+            "node": "CODE_SepararLeads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_SepararLeads": {
+      "main": [
+        [
+          {
+            "node": "LOOP_Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LOOP_Leads": {
+      "main": [
+        [],
+        [
+          {
+            "node": "CODE_DiagnosticarLead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_DiagnosticarLead": {
+      "main": [
+        [
+          {
+            "node": "PB_ActualizarDiagnostico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_ActualizarDiagnostico": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "LOOP_Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "3e36b374-02a0-4002-9512-f914a4f0e5a0",
+  "meta": {
+    "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
+  },
+  "id": "qTkiZk_SR23VXTBIHGus0",
+  "tags": []
+}

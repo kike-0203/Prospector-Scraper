@@ -1,0 +1,229 @@
+{
+  "name": "04_GenerarMensajes",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        0
+      ],
+      "id": "792e2078-a791-4788-bf05-a0a41ac62068",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8091/api/collections/leads/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filter",
+              "value": "mensaje_generado=false && mensaje_enfoque!=\"\""
+            },
+            {
+              "name": "sort",
+              "value": "-score"
+            },
+            {
+              "name": "perPage",
+              "value": "50"
+            },
+            {
+              "name": "page",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        176,
+        0
+      ],
+      "id": "f545fb4b-8f9d-4cca-9d8a-c7f421dd50f5",
+      "name": "PB_LeerLeadsParaMensaje"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $json.items.map(item => ({\n  json: item\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        0
+      ],
+      "id": "c3aad560-4979-424d-a160-a4531a77bf33",
+      "name": "CODE_SepararLeads"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        576,
+        0
+      ],
+      "id": "3fc90583-b53b-47a6-96a6-33e41c123cf0",
+      "name": "LOOP_Leads"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $json;\n\nlet mensaje = \"\";\n\nswitch (lead.mensaje_enfoque) {\n\n  case \"whatsapp_ia\":\n\n    mensaje =\n`Hola ${lead.nombre}.\n\nVi que ya tienen presencia digital y me llamó la atención su negocio.\n\nActualmente estoy ayudando a negocios locales a automatizar WhatsApp para responder clientes, tomar pedidos y dar seguimiento automáticamente 24/7.\n\n¿Te interesaría que te mostrara un ejemplo funcionando?`;\n\n    break;\n\n\n  case \"pagina_web\":\n\n    mensaje =\n`Hola ${lead.nombre}.\n\nVi que actualmente no cuentan con página web.\n\nEstoy ayudando a negocios locales a conseguir más clientes mediante páginas web modernas conectadas con WhatsApp.\n\n¿Te gustaría que te enseñara algunos ejemplos?`;\n\n    break;\n\n\n  case \"mejorar_web\":\n\n    mensaje =\n`Hola ${lead.nombre}.\n\nEstuve revisando su página web y vi varias oportunidades para mejorar la experiencia y generar más contactos desde internet.\n\nMe dedico al desarrollo web para negocios locales.\n\n¿Te gustaría recibir algunas recomendaciones sin costo?`;\n\n    break;\n\n\n  case \"redes_sociales\":\n\n    mensaje =\n`Hola ${lead.nombre}.\n\nNoté que actualmente no tienen presencia activa en redes sociales.\n\nEstoy ayudando a negocios locales a generar contenido y atraer clientes desde Facebook e Instagram.\n\n¿Te interesaría ver algunas ideas para su negocio?`;\n\n    break;\n\n\n  case \"marketing_digital\":\n\n    mensaje =\n`Hola ${lead.nombre}.\n\nVi que ya cuentan con presencia digital.\n\nActualmente ayudo a negocios locales a generar más clientes mediante campañas, automatización y seguimiento por WhatsApp.\n\n¿Te gustaría conocer algunas estrategias que podrían funcionar para ustedes?`;\n\n    break;\n\n\n  default:\n\n    mensaje =\n`Hola ${lead.nombre}.\n\nMe llamó la atención su negocio y creo que podría ayudarles a conseguir más clientes mediante herramientas digitales.\n\n¿Te interesaría platicar unos minutos?`;\n\n}\n\nreturn [{\n  json: {\n    ...lead,\n    mensaje,\n    mensaje_generado: true,\n    estado_mensaje: \"generado\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        96
+      ],
+      "id": "963ebfec-a16b-4372-8752-ee863b947ad3",
+      "name": "CODE_GenerarMensaje"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/leads/records/{{$json.id}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "mensaje",
+              "value": "={{ $json.mensaje }}"
+            },
+            {
+              "name": "mensaje_generado",
+              "value": "={{ $json.mensaje_generado }}"
+            },
+            {
+              "name": "estado_mensaje",
+              "value": "={{ $json.estado_mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        944,
+        96
+      ],
+      "id": "3c7ba000-d664-469c-952a-3302e4e6b09b",
+      "name": "PB_GuardarMensaje"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1168,
+        128
+      ],
+      "id": "620d221c-5d62-4886-8f93-08943da0bd1e",
+      "name": "Wait",
+      "webhookId": "1f7351b9-bb7d-4977-ba03-af6f8e9f7933"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerLeadsParaMensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_LeerLeadsParaMensaje": {
+      "main": [
+        [
+          {
+            "node": "CODE_SepararLeads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_SepararLeads": {
+      "main": [
+        [
+          {
+            "node": "LOOP_Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LOOP_Leads": {
+      "main": [
+        [],
+        [
+          {
+            "node": "CODE_GenerarMensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_GenerarMensaje": {
+      "main": [
+        [
+          {
+            "node": "PB_GuardarMensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_GuardarMensaje": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "LOOP_Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d6f396f5-bee5-4d7a-8fc6-717feaf11669",
+  "meta": {
+    "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
+  },
+  "id": "J5uz61_T7vGkPIW9unUxc",
+  "tags": []
+}

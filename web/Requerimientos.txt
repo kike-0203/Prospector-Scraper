@@ -1,0 +1,19 @@
+vite
+npm run dev -- --host
+-------------------------
+
+docker start n8n
+
+-----------------------
+
+React → Cloudflared 5173
+.\cloudflared.exe tunnel --url http://localhost:5173
+
+PocketBase → Cloudflared 8091
+.\cloudflared.exe tunnel --url http://localhost:8091
+
+----------------------------------------------
+
+n8n → Ngrok 5678
+
+

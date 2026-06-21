@@ -1,0 +1,178 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0b0b0d;
+  color: #f4f4f5;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.app {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 14px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stats div {
+  background: #17171a;
+  border: 1px solid #2a2a2e;
+  border-radius: 18px;
+  padding: 10px;
+  text-align: center;
+}
+
+.stats span {
+  display: block;
+  font-size: 11px;
+  color: #a1a1aa;
+}
+
+.stats strong {
+  font-size: 24px;
+}
+
+.card {
+  background: #ffffff;
+  color: #111;
+  border-radius: 26px;
+  padding: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+
+.card.empty {
+  text-align: center;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.score,
+.wa {
+  background: #111;
+  color: white;
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+h1 {
+  margin: 8px 0 6px;
+  font-size: 32px;
+  line-height: 1.02;
+  font-weight: 950;
+  color: #000;
+  letter-spacing: -1px;
+}
+
+.meta {
+  color: #666;
+  margin: 6px 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.chips span {
+  background: #ededed;
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+textarea {
+  width: 100%;
+  min-height: 320px;
+  resize: vertical;
+  border: 1px solid #ddd;
+  border-radius: 18px;
+  padding: 14px;
+  font-size: 16px;
+  line-height: 1.35;
+  background: #1f1f22;
+  color: #fff;
+}
+
+button {
+  border: 0;
+  border-radius: 16px;
+  padding: 15px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: .55;
+}
+
+.send {
+  width: 100%;
+  margin-top: 12px;
+  background: #111;
+  color: white;
+  font-size: 16px;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.actions button {
+  background: #eee;
+  color: #111;
+}
+
+.undo {
+  width: 100%;
+  margin-top: 10px;
+  background: #fff3cd;
+  color: #111;
+}
+
+.logs {
+  margin-top: 12px;
+  background: #17171a;
+  border: 1px solid #2a2a2e;
+  border-radius: 18px;
+  padding: 12px;
+  color: #d4d4d8;
+  font-size: 13px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.logs strong {
+  display: block;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.logs p {
+  margin: 6px 0 0;
+  color: #a1a1aa;
+  font-size: 12px;
+}

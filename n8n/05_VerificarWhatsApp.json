@@ -1,0 +1,280 @@
+{
+  "name": "05_VerificarWhatsApp",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        0
+      ],
+      "id": "0797aa2d-9974-4e44-8294-ab121013b744",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8091/api/collections/leads/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "page",
+              "value": "1"
+            },
+            {
+              "name": "perPage",
+              "value": "100"
+            },
+            {
+              "name": "sort",
+              "value": "-score"
+            },
+            {
+              "name": "filter",
+              "value": "mensaje_generado=true && estado_mensaje=\"generado\" && whatsapp_verificado=false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -80,
+        0
+      ],
+      "id": "9ba40094-1701-4081-b3bd-2f5e553cd059",
+      "name": "PB_LeerMensajesGenerados"
+    },
+    {
+      "parameters": {
+        "jsCode": "const leads = $json.items || [];\n\nreturn leads.map(lead => ({\n  json: lead\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        0
+      ],
+      "id": "edf59e9a-cb63-4ac3-a9e8-a6f02e1e5d19",
+      "name": "CODE_SepararLeads"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        336,
+        0
+      ],
+      "id": "d0c3998a-c94f-44aa-b0ff-29c3d924cc6a",
+      "name": "LOOP_Leads"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3000/api/contacts/check-exists",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "phone",
+              "value": "={{$json.telefono_limpio}}"
+            },
+            {
+              "name": "session",
+              "value": "default"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "2cdb1e80acf84a70a40213c506fa3016"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        96
+      ],
+      "id": "9a27d5a8-6826-4e4c-8abf-4a9843425eba",
+      "name": "HTTP_WAHA_VerificarNumero"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $('LOOP_Leads').first().json;\n\nconst existe = $json.numberExists === true;\n\nreturn [{\n  json: {\n    ...lead,\n\n    tiene_whatsapp: existe,\n    whatsapp_verificado: true,\n    estado_whatsapp: existe\n      ? 'verificado'\n      : 'sin_whatsapp'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        96
+      ],
+      "id": "47577b80-523b-4882-9387-7b8cba0e7cf3",
+      "name": "CODE_NormalizarVerificacionWA"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/leads/records/{{$json.id}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tiene_whatsapp",
+              "value": "={{ $json.tiene_whatsapp }}"
+            },
+            {
+              "name": "whatsapp_verificado",
+              "value": "={{ $json.whatsapp_verificado }}"
+            },
+            {
+              "name": "estado_mensaje",
+              "value": "={{ $json.estado_mensaje }}"
+            },
+            {
+              "name": "estado_whatsapp",
+              "value": "={{$json.estado_whatsapp}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        960,
+        96
+      ],
+      "id": "191be35d-34cb-4021-bb93-d9f0f3c424a6",
+      "name": "PB_ActualizarLeadWA"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1168,
+        144
+      ],
+      "id": "10cf8f5d-e49c-46be-beaf-f7c79f3b4e4b",
+      "name": "Wait",
+      "webhookId": "c4ac8780-f074-4651-a036-ebe8ffb810ea"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerMensajesGenerados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_LeerMensajesGenerados": {
+      "main": [
+        [
+          {
+            "node": "CODE_SepararLeads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_SepararLeads": {
+      "main": [
+        [
+          {
+            "node": "LOOP_Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LOOP_Leads": {
+      "main": [
+        [],
+        [
+          {
+            "node": "HTTP_WAHA_VerificarNumero",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_WAHA_VerificarNumero": {
+      "main": [
+        [
+          {
+            "node": "CODE_NormalizarVerificacionWA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_NormalizarVerificacionWA": {
+      "main": [
+        [
+          {
+            "node": "PB_ActualizarLeadWA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_ActualizarLeadWA": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "LOOP_Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "26c42453-ff14-4441-8a28-ad75b056a376",
+  "meta": {
+    "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
+  },
+  "id": "WP_GbvQ6HUxph8_ug80AF",
+  "tags": []
+}
