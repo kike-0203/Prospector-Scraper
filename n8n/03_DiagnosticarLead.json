@@ -2,17 +2,6 @@
   "name": "03_DiagnosticarLead",
   "nodes": [
     {
-      "parameters": {},
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [
-        0,
-        0
-      ],
-      "id": "a193ac61-b487-4a9a-85b1-a3b29adf2ba1",
-      "name": "When clicking ‘Execute workflow’"
-    },
-    {
       "parameters": {
         "url": "http://host.docker.internal:8091/api/collections/leads/records",
         "sendQuery": true,
@@ -41,7 +30,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        208,
+        80,
         0
       ],
       "id": "cf4cc802-b8aa-4358-b6a7-1ffd8694079e",
@@ -54,8 +43,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        416,
-        0
+        640,
+        -112
       ],
       "id": "0add1817-7afc-455f-9ea0-494c1c41d26c",
       "name": "CODE_SepararLeads"
@@ -67,8 +56,8 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        624,
-        0
+        848,
+        -112
       ],
       "id": "f75035bb-268e-406e-ad6e-a590cd566e5b",
       "name": "LOOP_Leads"
@@ -80,8 +69,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        832,
-        96
+        1056,
+        -16
       ],
       "id": "4e325edc-b338-4898-ae89-f1e5ad1b6562",
       "name": "CODE_DiagnosticarLead"
@@ -116,8 +105,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1040,
-        96
+        1264,
+        -16
       ],
       "id": "ca6afcf5-73d3-4824-b578-116ee1233069",
       "name": "PB_ActualizarDiagnostico"
@@ -129,32 +118,128 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1264,
-        128
+        1488,
+        16
       ],
       "id": "aec8cf19-f5ff-4fdf-8af1-fbc9744a8661",
       "name": "Wait",
       "webhookId": "d4202e0e-931c-4f5c-88f6-a0aeb36dd095"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "diagnosticar-leads",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -128,
+        0
+      ],
+      "id": "7d605d45-d9f5-42c6-bfae-0def618bd6e9",
+      "name": "Webhook_03_DiagnosticarLead",
+      "webhookId": "6a0ab38a-e7f8-44b6-a725-bd35d2fa76a3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $getWorkflowStaticData('global')\nconst key = `flujo_03_disparo_04_${$execution.id}`\n\nif (data[key]) {\n  return []\n}\n\ndata[key] = true\n\nreturn [\n  {\n    json: {\n      origen: '03_DiagnosticarLead',\n      siguiente: '04_GenerarMensajes',\n      fecha: new Date().toISOString()\n    }\n  }\n]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        -208
+      ],
+      "id": "a33677a6-ceda-4adb-8ebb-4881803cea45",
+      "name": "CODE_Disparar_04_UnaVez"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erupt-theater-sectional.ngrok-free.dev/webhook/generar-mensajes",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "origen",
+              "value": "={{ $json.origen }}"
+            },
+            {
+              "name": "siguiente",
+              "value": "={{ $json.siguiente }}"
+            },
+            {
+              "name": "fecha",
+              "value": "={{ $json.fecha }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1264,
+        -208
+      ],
+      "id": "da593ef6-c18c-4432-96f4-9f989d8c0b58",
+      "name": "HTTP_Llamar_04_GenerarMensajes"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "bcd5dcac-b331-49de-a1db-f808c38d927d",
+              "leftValue": "={{ $json.totalItems }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        288,
+        0
+      ],
+      "id": "e35dddf9-1180-4021-bd4a-e2d77c75660c",
+      "name": "IF_HayLeadsParaDiagnostico"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    estado: 'sin_leads',\n    flujo: '03_DiagnosticarLead',\n    mensaje: 'No hay leads pendientes para diagnosticar',\n    fecha: new Date().toISOString()\n  }\n}]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        96
+      ],
+      "id": "5b996be6-64c5-44bf-ab35-0084c7174e88",
+      "name": "CODE_SinLeadsParaDiagnostico"
     }
   ],
   "pinData": {},
   "connections": {
-    "When clicking ‘Execute workflow’": {
-      "main": [
-        [
-          {
-            "node": "PB_LeerLeadsParaDiagnostico",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "PB_LeerLeadsParaDiagnostico": {
       "main": [
         [
           {
-            "node": "CODE_SepararLeads",
+            "node": "IF_HayLeadsParaDiagnostico",
             "type": "main",
             "index": 0
           }
@@ -174,7 +259,13 @@
     },
     "LOOP_Leads": {
       "main": [
-        [],
+        [
+          {
+            "node": "CODE_Disparar_04_UnaVez",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "CODE_DiagnosticarLead",
@@ -216,15 +307,55 @@
           }
         ]
       ]
+    },
+    "Webhook_03_DiagnosticarLead": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerLeadsParaDiagnostico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_Disparar_04_UnaVez": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Llamar_04_GenerarMensajes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_HayLeadsParaDiagnostico": {
+      "main": [
+        [
+          {
+            "node": "CODE_SepararLeads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CODE_SinLeadsParaDiagnostico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "3e36b374-02a0-4002-9512-f914a4f0e5a0",
+  "versionId": "f9e80406-7b04-4648-93be-51f4dd64e099",
   "meta": {
     "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
   },

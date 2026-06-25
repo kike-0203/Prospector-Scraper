@@ -2,17 +2,6 @@
   "name": "04_GenerarMensajes",
   "nodes": [
     {
-      "parameters": {},
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [
-        -32,
-        0
-      ],
-      "id": "792e2078-a791-4788-bf05-a0a41ac62068",
-      "name": "When clicking ‘Execute workflow’"
-    },
-    {
       "parameters": {
         "url": "http://host.docker.internal:8091/api/collections/leads/records",
         "sendQuery": true,
@@ -54,7 +43,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        368,
+        640,
         0
       ],
       "id": "c3aad560-4979-424d-a160-a4531a77bf33",
@@ -67,7 +56,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        576,
+        944,
         0
       ],
       "id": "3fc90583-b53b-47a6-96a6-33e41c123cf0",
@@ -80,7 +69,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        752,
+        1120,
         96
       ],
       "id": "963ebfec-a16b-4372-8752-ee863b947ad3",
@@ -112,7 +101,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        944,
+        1312,
         96
       ],
       "id": "3c7ba000-d664-469c-952a-3302e4e6b09b",
@@ -125,32 +114,128 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1168,
+        1536,
         128
       ],
       "id": "620d221c-5d62-4886-8f93-08943da0bd1e",
       "name": "Wait",
       "webhookId": "1f7351b9-bb7d-4977-ba03-af6f8e9f7933"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generar-mensajes",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -48,
+        0
+      ],
+      "id": "57f3ac25-796c-4eaf-8688-13200495dfac",
+      "name": "Webhook_04_GenerarMensajes",
+      "webhookId": "d5dc4f91-c283-498c-863a-acac238091d4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erupt-theater-sectional.ngrok-free.dev/webhook/verificar-leads",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "origen",
+              "value": "={{$json.origen}}"
+            },
+            {
+              "name": "siguiente",
+              "value": "={{$json.siguiente}}"
+            },
+            {
+              "name": "fecha",
+              "value": "={{$json.fecha}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1360,
+        -96
+      ],
+      "id": "be7942cb-e333-494f-b8ad-0d04a10835c9",
+      "name": "HTTP_Llamar_05_VerificarLeads"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      origen: '04_GenerarMensajes',\n      siguiente: '05_VerificarLeads',\n      fecha: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        -96
+      ],
+      "id": "d77186cd-97a5-4ae0-bc20-206e402986a9",
+      "name": "CODE_Disparar_05_UnaVez"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "08dbec22-6bdb-4a2e-8821-fef459f064a4",
+              "leftValue": "={{ $json.totalItems }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        400,
+        128
+      ],
+      "id": "a23708a7-91fe-40ae-9674-efb3a8c557c3",
+      "name": "IF_HayLeadsParaMensaje"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    estado: 'sin_leads',\n    flujo: '04_GenerarMensajes',\n    mensaje: 'No hay leads pendientes para generar mensaje',\n    fecha: new Date().toISOString()\n  }\n}]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        224
+      ],
+      "id": "c180e720-9685-4dc3-87c3-1289125555b1",
+      "name": "Code in JavaScript"
     }
   ],
   "pinData": {},
   "connections": {
-    "When clicking ‘Execute workflow’": {
-      "main": [
-        [
-          {
-            "node": "PB_LeerLeadsParaMensaje",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "PB_LeerLeadsParaMensaje": {
       "main": [
         [
           {
-            "node": "CODE_SepararLeads",
+            "node": "IF_HayLeadsParaMensaje",
             "type": "main",
             "index": 0
           }
@@ -170,7 +255,13 @@
     },
     "LOOP_Leads": {
       "main": [
-        [],
+        [
+          {
+            "node": "CODE_Disparar_05_UnaVez",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "CODE_GenerarMensaje",
@@ -212,15 +303,55 @@
           }
         ]
       ]
+    },
+    "Webhook_04_GenerarMensajes": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerLeadsParaMensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_Disparar_05_UnaVez": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Llamar_05_VerificarLeads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_HayLeadsParaMensaje": {
+      "main": [
+        [
+          {
+            "node": "CODE_SepararLeads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "d6f396f5-bee5-4d7a-8fc6-717feaf11669",
+  "versionId": "599356f1-c6e7-4837-9147-08b6a53e54ab",
   "meta": {
     "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
   },

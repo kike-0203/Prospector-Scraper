@@ -2,17 +2,6 @@
   "name": "02_ScrapingWebsites",
   "nodes": [
     {
-      "parameters": {},
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [
-        -256,
-        0
-      ],
-      "id": "91acd8a9-5dc7-4272-b586-e513ded11e11",
-      "name": "When clicking ‘Execute workflow’"
-    },
-    {
       "parameters": {
         "options": {}
       },
@@ -23,7 +12,8 @@
         0
       ],
       "id": "9885c563-9226-4ff4-a0ab-a92a2246ebd1",
-      "name": "LOOP_Leads"
+      "name": "LOOP_Leads",
+      "alwaysOutputData": false
     },
     {
       "parameters": {
@@ -54,8 +44,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        -64,
-        0
+        -256,
+        64
       ],
       "id": "5ea8dfbb-1959-4b7b-9797-14f277ac2ef1",
       "name": "PB_LeerLeadsConWeb"
@@ -201,6 +191,56 @@
               },
               "renameOutput": true,
               "outputKey": "sin_web"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "58c4c6ba-3ce0-48e5-99f0-b89dafa70137",
+                    "leftValue": "={{$json.tipo_url}}",
+                    "rightValue": "linktree",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "linktree"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "b79fe086-5808-43b1-ad6f-d69a78751143",
+                    "leftValue": "={{$json.tipo_url}}",
+                    "rightValue": "otro",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "otro"
             }
           ]
         },
@@ -581,7 +621,7 @@
       "typeVersion": 4.4,
       "position": [
         1216,
-        528
+        592
       ],
       "id": "44ba5b0b-1c5c-4542-876d-4f3fe099524f",
       "name": "PB_ActualizarLeadURL3"
@@ -593,30 +633,132 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1840,
-        528
+        1888,
+        624
       ],
       "id": "824251f4-ee74-468b-b5e0-faa6c0882dbc",
       "name": "Wait1",
       "webhookId": "6bcf5780-7a88-469d-965a-739bb2b91261"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "scraping-websites",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -448,
+        64
+      ],
+      "id": "3b309476-531a-4088-a525-7cc9c8e07e4e",
+      "name": "Webhook",
+      "webhookId": "3eef9291-6cb4-433f-b5f0-fe363a5c9d08"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      origen: '02_ScrapingWebsites',\n      siguiente: '03_DiagnosticarLead',\n      fecha: new Date().toISOString()\n    }\n  }\n]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        -160
+      ],
+      "id": "55583245-184c-456a-9e4b-41b045534726",
+      "name": "CODE_Disparar_03_UnaVez"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erupt-theater-sectional.ngrok-free.dev/webhook/diagnosticar-leads",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "origen",
+              "value": "={{$json.origen}}"
+            },
+            {
+              "name": "siguiente",
+              "value": "={{$json.siguiente}}"
+            },
+            {
+              "name": "fecha",
+              "value": "={{$json.fecha}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        816,
+        -208
+      ],
+      "id": "23854ee6-eb9a-4534-95bf-86cec130ff6d",
+      "name": "HTTP_Llamar_03_DiagnosticarLead1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "15b4488f-e9c6-4ef5-9da0-062c484bd20c",
+              "leftValue": "={{ $json.totalItems }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -64,
+        112
+      ],
+      "id": "3a7f9d51-8820-4b43-8e8d-319d18bacf16",
+      "name": "IF_HayLeadsConWeb"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    estado: 'sin_leads',\n    flujo: '02_ScrapingWebsites',\n    mensaje: 'No hay leads pendientes para scraping web',\n    fecha: new Date().toISOString()\n  }\n}]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        208
+      ],
+      "id": "7cea01e3-37b2-430f-89d0-b3800d7c246a",
+      "name": "CODE_SinLeadsConWeb"
     }
   ],
   "pinData": {},
   "connections": {
-    "When clicking ‘Execute workflow’": {
+    "LOOP_Leads": {
       "main": [
         [
           {
-            "node": "PB_LeerLeadsConWeb",
+            "node": "CODE_Disparar_03_UnaVez",
             "type": "main",
             "index": 0
           }
-        ]
-      ]
-    },
-    "LOOP_Leads": {
-      "main": [
-        [],
+        ],
         [
           {
             "node": "CODE_ClasificarURL",
@@ -630,7 +772,7 @@
       "main": [
         [
           {
-            "node": "CODE_SepararLeads",
+            "node": "IF_HayLeadsConWeb",
             "type": "main",
             "index": 0
           }
@@ -674,6 +816,20 @@
         [
           {
             "node": "PB_ActualizarLeadURL2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PB_ActualizarLeadURL3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PB_ActualizarLeadURL3",
             "type": "main",
             "index": 0
           }
@@ -785,15 +941,55 @@
           }
         ]
       ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerLeadsConWeb",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_Disparar_03_UnaVez": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Llamar_03_DiagnosticarLead1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_HayLeadsConWeb": {
+      "main": [
+        [
+          {
+            "node": "CODE_SepararLeads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CODE_SinLeadsConWeb",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "f46d6cb1-ca28-4789-95b4-7eb13a8ddfe3",
+  "versionId": "92dccb42-6dda-41c1-9eb1-28b0904b56d8",
   "meta": {
     "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
   },

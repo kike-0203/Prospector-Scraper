@@ -1,11 +1,30 @@
 import { useEffect, useState } from 'react'
 import PocketBase from 'pocketbase'
 import './App.css'
+import './debug-env.js'
 
-const pb = new PocketBase(import.meta.env.VITE_PB_URL)
+const PB_URL =
+  import.meta.env.VITE_PB_URL ||
+  'https://wide-clara-prefer-donate.trycloudflare.com'
+
+const N8N_SEND_WEBHOOK =
+  import.meta.env.VITE_N8N_SEND_WEBHOOK ||
+  'https://erupt-theater-sectional.ngrok-free.dev/webhook/enviar-lead-manual'
+
+const N8N_SCRAPER_WEBHOOK =
+  import.meta.env.VITE_N8N_SCRAPER_WEBHOOK ||
+  'https://erupt-theater-sectional.ngrok-free.dev/webhook/iniciar-scraper'
+
+const pb = new PocketBase(PB_URL)
+pb.autoCancellation(false)
+
+console.log('PB URL:', PB_URL)
+pb.autoCancellation(false)
+
+console.log('PB URL:', import.meta.env.VITE_PB_URL)
 
 const filtroPendientes =
-  `estado_mensaje="generado" && estado_whatsapp="verificado" && estado!="enviado_manual" && estado!="saltado_manual"`
+  `mensaje_generado=true && whatsapp_verificado=true && estado_mensaje="generado" && estado_whatsapp="verificado"`
 
 const oportunidadLabels = {
   pagina_web: '🌐 Página web',
@@ -24,6 +43,15 @@ function App() {
   const [stats, setStats] = useState({ pendientes: 0, enviados: 0, saltados: 0 })
   const [loading, setLoading] = useState(false)
   const [ultimoLead, setUltimoLead] = useState(null)
+  const [tab, setTab] = useState('leads')
+  const [nicho, setNicho] = useState('Tamales')
+  const [alcaldia, setAlcaldia] = useState('Coyoacan')
+  const [cantidadCps, setCantidadCps] = useState(5)
+  const [scraperLoading, setScraperLoading] = useState(false)
+  const [cpsDisponibles, setCpsDisponibles] = useState(0)
+  const [ultimaCampana, setUltimaCampana] = useState(null)
+  const [campanas, setCampanas] = useState([])
+  const [campanasLoading, setCampanasLoading] = useState(false)
 
   const log = (txt) => {
     setLogs(prev => [`${new Date().toLocaleTimeString()} · ${txt}`, ...prev].slice(0, 4))
@@ -49,43 +77,46 @@ function App() {
     }
   }
 
-  const cargarLead = async () => {
-    setLoading(true)
-    log('🔄 Cargando siguiente')
+ const cargarLead = async () => {
+  setLoading(true)
+  log('🔄 Cargando siguiente')
 
-    try {
-      const res = await pb.collection('leads').getList(1, 1, {
-        filter: filtroPendientes,
-        sort: '-score',
-      })
+  try {
+    const res = await pb.collection('leads').getList(1, 1, {
+      filter: filtroPendientes,
+      sort: '-score',
+    })
 
-      const item = res.items[0]
+    console.log('RESPUESTA LEADS:', res)
 
-      if (!item) {
-        setLead(null)
-        setMensaje('')
-        log('📭 Sin leads pendientes')
-        await cargarStats()
-        return
-      }
-
-      setLead(item)
-      setMensaje(item.mensaje || '')
-      log(`📋 Lead: ${item.nombre}`)
-      await cargarStats()
-    } catch {
-      log('❌ Error cargando lead')
-    } finally {
-      setLoading(false)
+    if (!res.items || res.items.length === 0) {
+      setLead(null)
+      setMensaje('')
+      log(`📭 Sin leads pendientes. Total: ${res.totalItems}`)
+      return
     }
+
+    const item = res.items[0]
+
+    console.log('LEAD CARGADO:', item)
+
+    setLead(item)
+    setMensaje(item.mensaje || '')
+    log(`📋 Lead: ${item.nombre || 'sin nombre'}`)
+  } catch (error) {
+    console.error('ERROR CARGAR LEAD:', error)
+    log(`❌ Error cargando lead: ${error.message}`)
+  } finally {
+    setLoading(false)
   }
+}
 
   const enviar = async () => {
     if (!lead) return
     setLoading(true)
 
     try {
-      const resp = await fetch(import.meta.env.VITE_N8N_SEND_WEBHOOK, {
+      const resp = await fetch(N8N_SEND_WEBHOOK, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -99,6 +130,7 @@ function App() {
 
       setUltimoLead({ ...lead, mensaje })
       log(`✅ Enviado: ${lead.nombre}`)
+      await cargarStats()
       await cargarLead()
     } catch {
       log('❌ Error WAHA')
@@ -150,6 +182,75 @@ function App() {
     }
   }
 
+        const cargarCampanas = async () => {
+          setCampanasLoading(true)
+
+          try {
+            const res = await pb.collection('campanas').getList(1, 10, {
+              sort: '-created',
+            })
+
+            setCampanas(res.items)
+          } catch {
+            log('❌ Error cargando campañas')
+          } finally {
+            setCampanasLoading(false)
+          }
+        }
+
+      const cargarInfoScraper = async () => {
+      try {
+        const cps = await pb.collection('catalogos_cp').getList(1, 1, {
+          filter: `activo=true && usado=false && municipio="${alcaldia}"`,
+        })
+
+        const campanas = await pb.collection('campanas').getList(1, 1, {
+          sort: '-created',
+        })
+
+        setCpsDisponibles(cps.totalItems)
+        setUltimaCampana(campanas.items[0] || null)
+      } catch {
+        log('❌ Error cargando info scraper')
+      }
+    }
+
+  const iniciarScraper = async () => {
+    setScraperLoading(true)
+
+    log('🚀 Iniciando scraper')
+    log(`📍 Reservando ${cantidadCps} CPs`)
+
+    try {
+      const resp = await fetch(
+        N8N_SCRAPER_WEBHOOK,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            nicho,
+            alcaldia,
+            cantidad_cps: cantidadCps,
+          }),
+        }
+      )
+
+      if (!resp.ok) throw new Error()
+
+      log('📦 Campaña creada')
+      log('🔍 Scraper ejecutándose')
+      log('✅ Flujo iniciado correctamente')
+      await cargarInfoScraper()
+
+    } catch {
+      log('❌ Error iniciando scraper')
+    } finally {
+      setScraperLoading(false)
+    }
+  }
+
   const copiar = async () => {
     await navigator.clipboard.writeText(mensaje)
     log('📋 Mensaje copiado')
@@ -168,15 +269,52 @@ function App() {
     .slice(0, 4)
 
   useEffect(() => {
-    cargarLead()
+  cargarLead()
+  cargarStats()
   }, [])
+
+  useEffect(() => {
+  cargarInfoScraper()
+  }, [alcaldia])
+
+  useEffect(() => {
+  if (tab === 'campanas') {
+    cargarCampanas()
+  }
+  }, [tab])
 
   return (
     <main className="app">
+
+        <div className="tabs">
+          <button
+            className={tab === 'leads' ? 'tab active' : 'tab'}
+            onClick={() => setTab('leads')}
+          >
+            Leads
+          </button>
+
+          <button
+            className={tab === 'scraper' ? 'tab active' : 'tab'}
+            onClick={() => setTab('scraper')}
+          >
+            Scraper
+          </button>
+
+          <button
+            className={tab === 'campanas' ? 'tab active' : 'tab'}
+            onClick={() => setTab('campanas')}
+          >
+            Campañas
+          </button>
+        </div>
+
+          {tab === 'leads' && (
+              <>
+
       <section className="stats">
         <div><span>Pendientes</span><strong>{stats.pendientes}</strong></div>
         <div><span>Enviados</span><strong>{stats.enviados}</strong></div>
-        <div><span>Saltados</span><strong>{stats.saltados}</strong></div>
       </section>
 
       {!lead ? (
@@ -211,14 +349,9 @@ function App() {
 
           <div className="actions">
             <button onClick={copiar} disabled={loading}>Copiar</button>
-            <button onClick={saltar} disabled={loading}>Saltar</button>
           </div>
 
-          {ultimoLead && (
-            <button className="undo" onClick={deshacer} disabled={loading}>
-              ↩ Deshacer último
-            </button>
-          )}
+
         </section>
       )}
 
@@ -226,8 +359,143 @@ function App() {
         <strong>Log</strong>
         {logs.map((l, i) => <p key={i}>{l}</p>)}
       </section>
+
+          </>
+        )}
+
+        {tab === 'scraper' && (
+      <section className="card">
+
+        <h1>🚀 Scraper</h1>
+
+        <label>Nicho</label>
+
+        <select
+          className="big-select"
+          value={nicho}
+          onChange={(e) => setNicho(e.target.value)}
+        >
+          <option>Tamales</option>
+          <option>Dentistas</option>
+          <option>Tacos</option>
+          <option>Pozolerias</option>
+        </select>
+
+        <label>Alcaldía</label>
+
+        <select
+          className="big-select"
+          value={alcaldia}
+          onChange={(e) => setAlcaldia(e.target.value)}
+        >
+          <option>Coyoacan</option>
+        </select>
+
+        <div className="scraper-info">
+        <div>
+          <span>CPs disponibles</span>
+          <strong>{cpsDisponibles}</strong>
+        </div>
+
+        <div>
+          <span>Última campaña</span>
+          <strong>{ultimaCampana?.nombre || 'Sin campañas'}</strong>
+        </div>
+
+        <div>
+          <span>Estado</span>
+          <strong>{ultimaCampana?.estado || 'N/A'}</strong>
+        </div>
+
+        <div>
+          <span>Leads</span>
+          <strong>{ultimaCampana?.total_leads || 0}</strong>
+        </div>
+      </div>
+
+        <label>Cantidad CPs</label>
+
+        <div className="counter-row">
+
+          <button
+            onClick={() =>
+              setCantidadCps(Math.max(1, cantidadCps - 1))
+            }
+          >
+            -
+          </button>
+
+          <strong>{cantidadCps}</strong>
+
+          <button
+            onClick={() =>
+              setCantidadCps(cantidadCps + 1)
+            }
+          >
+            +
+          </button>
+
+        </div>
+
+
+        <div className="scraper-log">
+          <strong>Log scraper</strong>
+
+          {logs.length === 0 ? (
+            <p>Sin actividad todavía</p>
+          ) : (
+            logs.map((l, i) => <p key={i}>{l}</p>)
+          )}
+        </div>
+
+        <button
+          className="send"
+          onClick={iniciarScraper}
+          disabled={scraperLoading}
+        >
+          {scraperLoading
+            ? 'Procesando...'
+            : '🚀 Iniciar Scraping'}
+        </button>
+
+      </section>
+    )}
+
+      {tab === 'campanas' && (
+      <section className="card">
+        <h1>📊 Campañas</h1>
+
+        <button
+          className="send"
+          onClick={cargarCampanas}
+          disabled={campanasLoading}
+        >
+          {campanasLoading ? 'Cargando...' : 'Actualizar campañas'}
+        </button>
+
+        <div className="campanas-list">
+          {campanas.length === 0 ? (
+            <p>Sin campañas todavía</p>
+          ) : (
+            campanas.map((c) => (
+              <div className="campana-item" key={c.id}>
+                <strong>{c.nicho}</strong>
+                <span>{c.alcaldia}</span>
+
+                <p>Estado: {c.estado}</p>
+                <p>CPs: {c.total_busquedas || 0}</p>
+                <p>Procesadas: {c.busquedas_procesadas || 0}</p>
+                <p>Leads: {c.total_leads || 0}</p>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    )}
+
     </main>
   )
 }
 
 export default App
+

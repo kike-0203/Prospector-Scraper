@@ -2,17 +2,6 @@
   "name": "05_VerificarWhatsApp",
   "nodes": [
     {
-      "parameters": {},
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [
-        -288,
-        0
-      ],
-      "id": "0797aa2d-9974-4e44-8294-ab121013b744",
-      "name": "When clicking ‘Execute workflow’"
-    },
-    {
       "parameters": {
         "url": "http://host.docker.internal:8091/api/collections/leads/records",
         "sendQuery": true,
@@ -32,7 +21,7 @@
             },
             {
               "name": "filter",
-              "value": "mensaje_generado=true && estado_mensaje=\"generado\" && whatsapp_verificado=false"
+              "value": "mensaje_generado=true && whatsapp_verificado=false"
             }
           ]
         },
@@ -54,8 +43,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        128,
-        0
+        480,
+        -176
       ],
       "id": "edf59e9a-cb63-4ac3-a9e8-a6f02e1e5d19",
       "name": "CODE_SepararLeads"
@@ -67,8 +56,8 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        336,
-        0
+        688,
+        -176
       ],
       "id": "d0c3998a-c94f-44aa-b0ff-29c3d924cc6a",
       "name": "LOOP_Leads"
@@ -103,8 +92,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        544,
-        96
+        896,
+        -80
       ],
       "id": "9a27d5a8-6826-4e4c-8abf-4a9843425eba",
       "name": "HTTP_WAHA_VerificarNumero"
@@ -116,8 +105,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        752,
-        96
+        1104,
+        -80
       ],
       "id": "47577b80-523b-4882-9387-7b8cba0e7cf3",
       "name": "CODE_NormalizarVerificacionWA"
@@ -152,8 +141,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        960,
-        96
+        1312,
+        -80
       ],
       "id": "191be35d-34cb-4021-bb93-d9f0f3c424a6",
       "name": "PB_ActualizarLeadWA"
@@ -165,32 +154,83 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1168,
-        144
+        1520,
+        -32
       ],
       "id": "10cf8f5d-e49c-46be-beaf-f7c79f3b4e4b",
       "name": "Wait",
       "webhookId": "c4ac8780-f074-4651-a036-ebe8ffb810ea"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "verificar-leads",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -336,
+        0
+      ],
+      "id": "6c292964-8b05-4e1d-9a43-aff249ea77fd",
+      "name": "Webhook",
+      "webhookId": "9d9afbd6-75e2-48be-a522-711883c819c5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "80ff3f0f-2358-4d36-b8fb-2d7bf622f760",
+              "leftValue": "={{ $json.totalItems }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        128,
+        0
+      ],
+      "id": "c8cfbe22-3497-4029-a2c6-0e80275b00ea",
+      "name": "IF_HayLeadsParaVerificarWA"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    estado: 'sin_leads',\n    flujo: '05_VerificarWhatsApp',\n    mensaje: 'No hay leads pendientes para verificar WhatsApp',\n    fecha: new Date().toISOString()\n  }\n}]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        96
+      ],
+      "id": "81ec13e3-68b8-419a-93a7-1a8ec7a5cfdf",
+      "name": "CODE_SinLeadsParaVerificarWA"
     }
   ],
   "pinData": {},
   "connections": {
-    "When clicking ‘Execute workflow’": {
-      "main": [
-        [
-          {
-            "node": "PB_LeerMensajesGenerados",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "PB_LeerMensajesGenerados": {
       "main": [
         [
           {
-            "node": "CODE_SepararLeads",
+            "node": "IF_HayLeadsParaVerificarWA",
             "type": "main",
             "index": 0
           }
@@ -263,15 +303,44 @@
           }
         ]
       ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerMensajesGenerados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_HayLeadsParaVerificarWA": {
+      "main": [
+        [
+          {
+            "node": "CODE_SepararLeads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CODE_SinLeadsParaVerificarWA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "26c42453-ff14-4441-8a28-ad75b056a376",
+  "versionId": "55b02734-3128-4b2c-982a-c0510b3e1377",
   "meta": {
     "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
   },

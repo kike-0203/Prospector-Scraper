@@ -3,12 +3,12 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "// Procesar datos desde Webhook, Code de prueba o app Python\nconst input = $input.first().json;\n\n// Soporta ambos formatos:\n// 1) { body: {...} }\n// 2) { hoja, nicho, alcaldia... }\nconst data = input.body || input;\n\n// Extraer valores\nconst hoja = data.hoja || '';\nconst url_sheets = data.url_sheets || '';\nconst webhook_callback = data.webhook_callback || '';\n\nconst nicho = data.nicho || '';\nconst alcaldia = data.alcaldia || '';\nconst ciudad = data.ciudad || '';\nconst cp = data.cp || '';\n\nconst accion = data.accion || 'iniciar_scraping';\n\n// Google Sheets ya es opcional\nconst documentId = url_sheets\n  ? (url_sheets.match(/\\/d\\/([a-zA-Z0-9-_]+)/)?.[1] || '')\n  : '';\n\nreturn [\n  {\n    json: {\n      hoja,\n      documentId,\n      webhook_callback,\n      nicho,\n      alcaldia,\n      ciudad,\n      cp,\n      accion\n    }\n  }\n];"
+        "jsCode": "const input = $input.first().json;\nconst data = input.body || input;\n\nconst hoja = data.hoja || '';\nconst url_sheets = data.url_sheets || '';\nconst webhook_callback = data.webhook_callback || '';\n\nconst nicho = data.nicho || '';\nconst alcaldia = data.alcaldia || '';\nconst ciudad = data.ciudad || '';\nconst cp = data.cp || '';\n\nconst accion = data.accion || 'iniciar_scraping';\n\nconst documentId = url_sheets\n  ? (url_sheets.match(/\\/d\\/([a-zA-Z0-9-_]+)/)?.[1] || '')\n  : '';\n\nreturn [\n  {\n    json: {\n      hoja,\n      documentId,\n      webhook_callback,\n      nicho,\n      alcaldia,\n      ciudad,\n      cp,\n      accion\n    }\n  }\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        784,
+        992,
         -544
       ],
       "id": "40a732fb-7eab-404b-8836-898612235421",
@@ -42,7 +42,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2208,
+        2416,
         96
       ],
       "id": "7ba9b850-3e6f-4c0b-9a47-75c5dcabc895",
@@ -86,7 +86,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        384,
+        592,
         544
       ],
       "id": "fb047fd9-023f-4dba-8f3c-d93b5dc4470f",
@@ -99,7 +99,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        608,
+        816,
         544
       ],
       "id": "497939bc-95a8-46da-b046-b73a11942d5b",
@@ -112,8 +112,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2160,
-        560
+        2496,
+        672
       ],
       "id": "54fa0c53-63ac-43a6-a144-18a15cfdf9b1",
       "name": "WAIT_EntreBusquedas",
@@ -209,8 +209,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1712,
-        512
+        2016,
+        656
       ],
       "id": "5c7a7f5b-07d0-42e2-a148-bd29fb756bd8",
       "name": "PB_CrearLead"
@@ -303,7 +303,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        816,
+        1024,
         528
       ],
       "id": "058291d9-2a9c-4815-9936-bdd3715ad3db",
@@ -326,8 +326,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1088,
-        464
+        1376,
+        512
       ],
       "id": "0249f44d-1b2f-4e80-889b-b97b8655677b",
       "name": "PB_BuscarLeadPorTelefono"
@@ -359,8 +359,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        1504,
-        416
+        1760,
+        528
       ],
       "id": "49d108f5-4c9c-4185-8a99-c6fa2fb61eeb",
       "name": "IF_LeadExiste"
@@ -390,7 +390,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1712,
+        1920,
         -64
       ],
       "id": "ed99e8dd-533b-46bd-8713-bab019bb5ec7",
@@ -403,7 +403,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1920,
+        2128,
         -64
       ],
       "id": "bd2496ce-bd82-4fd5-991a-26744f4211d8",
@@ -439,29 +439,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1472,
+        1680,
         -32
       ],
       "id": "3711365a-9a42-4019-a3a2-e6f1fb90229c",
       "name": "PB_CrearBusqueda"
-    },
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "scraping",
-        "responseMode": "lastNode",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        -80,
-        -832
-      ],
-      "id": "c6d64337-78b1-41dc-807e-db82ac198d8b",
-      "name": "WEBHOOK_IniciarProceso1",
-      "webhookId": "39ebe095-c476-4960-9f10-a6fd564d9280",
-      "disabled": true
     },
     {
       "parameters": {
@@ -481,7 +463,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        608,
+        816,
         368
       ],
       "id": "51825399-976c-4099-aaea-120ac7632679",
@@ -509,8 +491,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        832,
-        368
+        1008,
+        320
       ],
       "id": "254b39da-9901-4e30-9c8b-f8301ac59124",
       "name": "PB_ActualizarCampanaFinal"
@@ -522,22 +504,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        384,
+        592,
         368
       ],
       "id": "592fbb3c-91a7-48fe-b9cb-ab5512d8f1eb",
       "name": "CODE_ListarBusquedasParaCerrar"
-    },
-    {
-      "parameters": {},
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [
-        256,
-        -544
-      ],
-      "id": "f9b7ad32-629c-4b6a-8e7f-795fadb2e86f",
-      "name": "When clicking ‘Execute workflow’"
     },
     {
       "parameters": {
@@ -560,24 +531,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1040,
+        1248,
         -544
       ],
       "id": "0eb8e4be-c655-481b-b2e0-90ff6a50e361",
       "name": "PB_BuscarCampanaExistente"
-    },
-    {
-      "parameters": {
-        "jsCode": "return [{\n  json: {\n    hoja: 'tamales_coyoacan_04400_04410_test_b',\n    nicho: 'Tamales',\n    alcaldia: 'Coyoacan',\n    ciudad: 'CDMX',\n    cp: '04400,04410'\n  }\n}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        544,
-        -544
-      ],
-      "id": "c509173b-1ad7-4c8d-bcbb-e399f4b62616",
-      "name": "CODE_DatosCampanaPrueba"
     },
     {
       "parameters": {
@@ -632,7 +590,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        448,
+        656,
         -96
       ],
       "id": "519deacd-3309-4965-ae68-d973bbb1d580",
@@ -659,7 +617,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1024,
+        1232,
         -96
       ],
       "id": "98d26772-2d99-41df-a381-9c5a90a9df4a",
@@ -692,7 +650,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        1232,
+        1440,
         -96
       ],
       "id": "ef5c391a-fc51-4ab7-9e1f-550d52665c0c",
@@ -705,7 +663,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1472,
+        1680,
         -224
       ],
       "id": "f46d538c-60a2-4cc4-b71c-4f0c91d57c73",
@@ -718,45 +676,210 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        688,
+        896,
         -192
       ],
       "id": "6faa1877-28a3-4034-9067-dc3ffc659e15",
       "name": "CODE_GenerarBusquedasDesdeCP"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "iniciar-scraper",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -112,
+        -544
+      ],
+      "id": "8a2b5dff-efd6-43d0-abcd-9fd80a1c3b6e",
+      "name": "Webhook",
+      "webhookId": "2003c088-9e03-4541-ac88-bb5948b1e552"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8091/api/collections/catalogos_cp/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "page",
+              "value": "1"
+            },
+            {
+              "name": "perPage",
+              "value": "={{ $json.cantidad_cps || 5  }}"
+            },
+            {
+              "name": "sort",
+              "value": "prioridad,cp"
+            },
+            {
+              "name": "filter",
+              "value": "=activo=true && usado=false && municipio=\"{{$('Webhook').first().json.body.alcaldia}}\""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        256,
+        -544
+      ],
+      "id": "85d6c447-2a84-462d-849a-0f97b2904d6b",
+      "name": "PB_LeerCPsDisponibles"
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhook = $('Webhook').first().json;\nconst input = webhook.body || webhook;\n\nconst cps = $json.items || [];\n\nif (cps.length === 0) {\n  throw new Error('No hay CPs disponibles para esa alcaldía.');\n}\n\nconst nicho = input.nicho || 'Tamales';\nconst alcaldia = input.alcaldia || 'Coyoacan';\nconst ciudad = 'CDMX';\n\nconst cpTexto = cps.map(x => x.cp).join(',');\n\nconst cleanNicho = nicho.toLowerCase().replace(/\\s+/g, '_');\nconst cleanAlcaldia = alcaldia.toLowerCase().replace(/\\s+/g, '_');\n\nconst fecha = new Date()\n  .toISOString()\n  .replace(/[-:T.Z]/g, '')\n  .slice(0, 12);\n\nreturn [{\n  json: {\n    hoja: `${cleanNicho}_${cleanAlcaldia}_${fecha}`,\n    nicho,\n    alcaldia,\n    ciudad,\n    cp: cpTexto,\n    cps_ids: cps.map(x => x.id),\n    accion: 'iniciar_scraping'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        -736
+      ],
+      "id": "2fda8b38-e485-45cd-bf8c-25559caaeb86",
+      "name": "CODE_ArmarCampanaDesdeCPs"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cpsIds = $('CODE_ArmarCampanaDesdeCPs').first().json.cps_ids || [];\n\nreturn cpsIds.map(id => ({\n  json: {\n    id,\n    usado: true,\n    ultimo_uso: new Date().toISOString()\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        320
+      ],
+      "id": "65d14f92-97af-4d99-83e3-b45c9df2a85f",
+      "name": "CODE_ListarCPsUsados"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/catalogos_cp/records/{{$json.id}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "usado",
+              "value": "={{ $json.usado }}"
+            },
+            {
+              "name": "ultimo_uso",
+              "value": "={{ $json.ultimo_uso }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1424,
+        320
+      ],
+      "id": "fb25eb19-6ce7-44bb-8be8-96dfc39119af",
+      "name": "PB_MarcarCPUsado"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erupt-theater-sectional.ngrok-free.dev/webhook/scraping-websites",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "origen",
+              "value": "={{ $json.origen }}"
+            },
+            {
+              "name": "siguiente",
+              "value": "={{ $json.siguiente }}"
+            },
+            {
+              "name": "fecha",
+              "value": "={{ $json.fecha }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1856,
+        320
+      ],
+      "id": "a8214880-4450-4362-8223-92876831b296",
+      "name": "HTTP_Llamar_02_ScrapingWebsites"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $getWorkflowStaticData('global')\nconst key = `flujo_01_disparo_02_${$execution.id}`\n\nif (data[key]) {\n  return []\n}\n\ndata[key] = true\n\nreturn [\n  {\n    json: {\n      origen: '01_BotScraperDB',\n      siguiente: '02_ScrapingWebsites',\n      fecha: new Date().toISOString()\n    }\n  }\n]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        320
+      ],
+      "id": "48a5f3ee-f65c-4184-86f7-0b1c207314c6",
+      "name": "CODE_Disparar_02_UnaVez"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "55b2c6d2-4f04-4c1f-afd7-a069e73e39df",
+              "leftValue": "={{ $json.totalItems }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        464,
+        -608
+      ],
+      "id": "96cb5ef1-e7f0-41cd-99cd-ff8608976c1e",
+      "name": "IF_HayCPs"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    estado: 'sin_cps',\n    flujo: '01_BotScraperDB',\n    mensaje: 'No hay CPs disponibles para esta alcaldia',\n    fecha: new Date().toISOString()\n  }\n}]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        -528
+      ],
+      "id": "d30f8a58-c720-4b27-a0ac-de9ac3e51097",
+      "name": "Code in JavaScript"
     }
   ],
-  "pinData": {
-    "WEBHOOK_IniciarProceso1": [
-      {
-        "json": {
-          "headers": {
-            "host": "epithetic-ettie-overmerciful.ngrok-free.dev",
-            "user-agent": "Python-urllib/3.14",
-            "content-length": "313",
-            "accept-encoding": "identity",
-            "content-type": "application/json",
-            "x-forwarded-for": "2806:107e:19:90a:a961:3423:cd78:5e59",
-            "x-forwarded-host": "epithetic-ettie-overmerciful.ngrok-free.dev",
-            "x-forwarded-proto": "https"
-          },
-          "params": {},
-          "query": {},
-          "body": {
-            "hoja": "tamales_coyoacan",
-            "url_sheets": "https://docs.google.com/spreadsheets/d/1sP9b5zCgP-exWQthvNEds0x5kpGDuk9EEXyY5p5GJLs/edit?gid=0#gid=0",
-            "webhook_callback": "http://localhost:8888/webhook",
-            "accion": "iniciar_scraping",
-            "nicho": "Tamales",
-            "alcaldia": "Coyoacan",
-            "ciudad": "CDMX",
-            "cp": "04000, 04010"
-          },
-          "webhookUrl": "https://epithetic-ettie-overmerciful.ngrok-free.dev/webhook-test/scraping",
-          "executionMode": "test"
-        }
-      }
-    ]
-  },
+  "pinData": {},
   "connections": {
     "CONFIG_LeerParametros": {
       "main": [
@@ -926,11 +1049,6 @@
         ]
       ]
     },
-    "WEBHOOK_IniciarProceso1": {
-      "main": [
-        []
-      ]
-    },
     "PB_MarcarBusquedaProcesada": {
       "main": [
         [
@@ -953,33 +1071,11 @@
         ]
       ]
     },
-    "When clicking ‘Execute workflow’": {
-      "main": [
-        [
-          {
-            "node": "CODE_DatosCampanaPrueba",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "PB_BuscarCampanaExistente": {
       "main": [
         [
           {
             "node": "IF_ExisteCampana",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "CODE_DatosCampanaPrueba": {
-      "main": [
-        [
-          {
-            "node": "CONFIG_LeerParametros",
             "type": "main",
             "index": 0
           }
@@ -1076,15 +1172,110 @@
           }
         ]
       ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerCPsDisponibles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_LeerCPsDisponibles": {
+      "main": [
+        [
+          {
+            "node": "IF_HayCPs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_ArmarCampanaDesdeCPs": {
+      "main": [
+        [
+          {
+            "node": "CONFIG_LeerParametros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_ActualizarCampanaFinal": {
+      "main": [
+        [
+          {
+            "node": "CODE_ListarCPsUsados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_ListarCPsUsados": {
+      "main": [
+        [
+          {
+            "node": "PB_MarcarCPUsado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_MarcarCPUsado": {
+      "main": [
+        [
+          {
+            "node": "CODE_Disparar_02_UnaVez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_Disparar_02_UnaVez": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Llamar_02_ScrapingWebsites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_HayCPs": {
+      "main": [
+        [
+          {
+            "node": "CODE_ArmarCampanaDesdeCPs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "14f716a7-b864-4b20-b27b-70d82168584e",
+  "versionId": "e4027b2c-6f8f-42cf-a8e8-3f966a7935da",
   "meta": {
     "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
   },

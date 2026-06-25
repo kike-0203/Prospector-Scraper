@@ -1,0 +1,126 @@
+{
+  "name": "00_CargarCatalogoCP",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "f2cd6f0d-6355-4127-8e8f-fd0af150fec1",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cps = `\n04000\n04010\n04020\n04030\n04040\n04100\n04200\n04210\n04220\n04230\n04240\n04250\n04300\n04310\n04318\n04320\n04330\n04340\n04360\n04369\n04370\n04380\n04390\n04400\n04410\n04420\n04430\n04440\n04450\n04460\n04470\n04480\n04489\n04500\n04510\n04519\n04530\n04600\n04620\n04630\n04640\n04650\n04660\n04700\n04710\n04730\n04800\n04810\n04815\n04820\n04830\n04840\n04870\n04890\n04899\n04909\n04910\n04918\n04919\n04920\n04929\n04938\n04939\n04940\n04950\n04960\n04970\n04980\n04989\n`\n.trim()\n.split('\\n')\n.map(cp => cp.trim())\n.filter(Boolean);\n\nreturn cps.map(cp => ({\n  json: {\n    cp,\n    pais: 'Mexico',\n    estado: 'CDMX',\n    municipio: 'Coyoacan',\n    ciudad: 'CDMX',\n    zona: 'sur',\n    activo: true,\n    prioridad: 1,\n    usado: false,\n    notas: ''\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "1940cff7-1f8c-45c1-a6ef-001ba69e80b2",
+      "name": "CODE_CargarCPs"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8091/api/collections/catalogos_cp/records",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "cp",
+              "value": "={{ $json.cp }}"
+            },
+            {
+              "name": "pais",
+              "value": "={{ $json.pais }}"
+            },
+            {
+              "name": "estado",
+              "value": "={{ $json.estado }}"
+            },
+            {
+              "name": "municipio",
+              "value": "={{ $json.municipio }}"
+            },
+            {
+              "name": "ciudad",
+              "value": "={{ $json.ciudad }}"
+            },
+            {
+              "name": "zona",
+              "value": "={{ $json.zona }}"
+            },
+            {
+              "name": "activo",
+              "value": "={{ $json.activo }}"
+            },
+            {
+              "name": "prioridad",
+              "value": "={{ $json.prioridad }}"
+            },
+            {
+              "name": "usado",
+              "value": "={{ $json.usado }}"
+            },
+            {
+              "name": "notas",
+              "value": "={{ $json.notas }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        416,
+        0
+      ],
+      "id": "52eee409-71d8-4188-861e-7cc8ef069d01",
+      "name": "PB_CrearCP"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "CODE_CargarCPs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_CargarCPs": {
+      "main": [
+        [
+          {
+            "node": "PB_CrearCP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "993768c9-424b-4b1b-bf56-1c201ff09d15",
+  "meta": {
+    "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
+  },
+  "id": "IYsBiUexUS2ZXssD-KMAR",
+  "tags": []
+}
