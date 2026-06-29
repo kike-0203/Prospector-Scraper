@@ -30,7 +30,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -80,
+        128,
         0
       ],
       "id": "9ba40094-1701-4081-b3bd-2f5e553cd059",
@@ -43,7 +43,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        480,
+        688,
         -176
       ],
       "id": "edf59e9a-cb63-4ac3-a9e8-a6f02e1e5d19",
@@ -56,7 +56,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        688,
+        896,
         -176
       ],
       "id": "d0c3998a-c94f-44aa-b0ff-29c3d924cc6a",
@@ -92,7 +92,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        896,
+        1104,
         -80
       ],
       "id": "9a27d5a8-6826-4e4c-8abf-4a9843425eba",
@@ -105,7 +105,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1104,
+        1312,
         -80
       ],
       "id": "47577b80-523b-4882-9387-7b8cba0e7cf3",
@@ -141,7 +141,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1312,
+        1520,
         -80
       ],
       "id": "191be35d-34cb-4021-bb93-d9f0f3c424a6",
@@ -154,7 +154,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1520,
+        1728,
         -32
       ],
       "id": "10cf8f5d-e49c-46be-beaf-f7c79f3b4e4b",
@@ -204,7 +204,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        128,
+        336,
         0
       ],
       "id": "c8cfbe22-3497-4029-a2c6-0e80275b00ea",
@@ -217,11 +217,71 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        336,
+        544,
         96
       ],
       "id": "81ec13e3-68b8-419a-93a7-1a8ec7a5cfdf",
       "name": "CODE_SinLeadsParaVerificarWA"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/campanas/records/{{ $('Webhook').first().json.body.campana_id }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "estado",
+              "value": "flujo_5_verificando"
+            },
+            {
+              "name": "mensaje_full_digital",
+              "value": "Verificando números con WhatsApp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -128,
+        0
+      ],
+      "id": "1aa43ff8-9239-4364-a787-c07de4e3caad",
+      "name": "PB_EstadoCampana_Flujo5"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/campanas/records/{{ $('Webhook').first().json.body.campana_id }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "estado",
+              "value": "terminado"
+            },
+            {
+              "name": "fecha_fin",
+              "value": "={{ new Date().toISOString() }}"
+            },
+            {
+              "name": "mensaje_full_digital",
+              "value": "Campaña terminada"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1104,
+        -272
+      ],
+      "id": "38af26f7-f096-4af3-8038-53ba137bc093",
+      "name": "PB_FinalizarCampana"
     }
   ],
   "pinData": {},
@@ -250,7 +310,13 @@
     },
     "LOOP_Leads": {
       "main": [
-        [],
+        [
+          {
+            "node": "PB_FinalizarCampana",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "HTTP_WAHA_VerificarNumero",
@@ -308,7 +374,7 @@
       "main": [
         [
           {
-            "node": "PB_LeerMensajesGenerados",
+            "node": "PB_EstadoCampana_Flujo5",
             "type": "main",
             "index": 0
           }
@@ -332,6 +398,17 @@
           }
         ]
       ]
+    },
+    "PB_EstadoCampana_Flujo5": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerMensajesGenerados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -340,9 +417,9 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "55b02734-3128-4b2c-982a-c0510b3e1377",
+  "versionId": "c5805ebb-c432-4f0f-86dd-b0c8207a7a33",
   "meta": {
-    "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
+    "instanceId": "bb0f0382383d4f643708f73f17000961d8224166b1cf2ba0ee3d12dbba08515b"
   },
   "id": "WP_GbvQ6HUxph8_ug80AF",
   "tags": []

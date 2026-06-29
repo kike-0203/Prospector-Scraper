@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "const input = $input.first().json;\nconst data = input.body || input;\n\nconst hoja = data.hoja || '';\nconst url_sheets = data.url_sheets || '';\nconst webhook_callback = data.webhook_callback || '';\n\nconst nicho = data.nicho || '';\nconst alcaldia = data.alcaldia || '';\nconst ciudad = data.ciudad || '';\nconst cp = data.cp || '';\n\nconst accion = data.accion || 'iniciar_scraping';\n\nconst documentId = url_sheets\n  ? (url_sheets.match(/\\/d\\/([a-zA-Z0-9-_]+)/)?.[1] || '')\n  : '';\n\nreturn [\n  {\n    json: {\n      hoja,\n      documentId,\n      webhook_callback,\n      nicho,\n      alcaldia,\n      ciudad,\n      cp,\n      accion\n    }\n  }\n];"
+        "jsCode": "const input = $input.first().json;\nconst data = input.body || input;\n\nconst hoja = data.hoja || '';\nconst url_sheets = data.url_sheets || '';\nconst webhook_callback = data.webhook_callback || '';\n\nconst nicho = data.nicho || '';\nconst alcaldia = data.alcaldia || '';\nconst ciudad = data.ciudad || '';\nconst cp = data.cp || '';\n\nconst cantidad_cps = Number(data.cantidad_cps || 5);\n\nconst accion = data.accion || 'iniciar_scraping';\n\nconst documentId = url_sheets\n  ? (url_sheets.match(/\\/d\\/([a-zA-Z0-9-_]+)/)?.[1] || '')\n  : '';\n\nreturn [\n  {\n    json: {\n      hoja,\n      documentId,\n      webhook_callback,\n      nicho,\n      alcaldia,\n      ciudad,\n      cp,\n      cantidad_cps,\n      accion\n    }\n  }\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -710,7 +710,7 @@
             },
             {
               "name": "perPage",
-              "value": "={{ $json.cantidad_cps || 5  }}"
+              "value": "={{ Number($('Webhook').first().json.body.cantidad_cps || 1) }}"
             },
             {
               "name": "sort",
@@ -718,7 +718,7 @@
             },
             {
               "name": "filter",
-              "value": "=activo=true && usado=false && municipio=\"{{$('Webhook').first().json.body.alcaldia}}\""
+              "value": "=activo=true && usado=false && municipio=\"{{ $('Webhook').first().json.body.alcaldia || 'Coyoacan' }}\""
             }
           ]
         },
@@ -805,6 +805,26 @@
             {
               "name": "fecha",
               "value": "={{ $json.fecha }}"
+            },
+            {
+              "name": "campana_id",
+              "value": "={{ $('CODE_GenerarBusquedasDesdeCP').first().json.campana_id }}"
+            },
+            {
+              "name": "nombre",
+              "value": "={{ $('CONFIG_LeerParametros').first().json.hoja }}"
+            },
+            {
+              "name": "nicho",
+              "value": "={{ $('CONFIG_LeerParametros').first().json.nicho }}"
+            },
+            {
+              "name": "alcaldia",
+              "value": "={{ $('CONFIG_LeerParametros').first().json.alcaldia }}"
+            },
+            {
+              "name": "ciudad",
+              "value": "={{ $('CONFIG_LeerParametros').first().json.ciudad }}"
             }
           ]
         },
@@ -1275,9 +1295,9 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "e4027b2c-6f8f-42cf-a8e8-3f966a7935da",
+  "versionId": "1eb81a78-cb49-4343-8dd8-75f15dae39f0",
   "meta": {
-    "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
+    "instanceId": "bb0f0382383d4f643708f73f17000961d8224166b1cf2ba0ee3d12dbba08515b"
   },
   "id": "n_s_0M3C3BBcFzA29Ibfg",
   "tags": []

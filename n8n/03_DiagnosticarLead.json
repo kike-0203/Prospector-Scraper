@@ -30,7 +30,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        80,
+        288,
         0
       ],
       "id": "cf4cc802-b8aa-4358-b6a7-1ffd8694079e",
@@ -43,7 +43,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        640,
+        848,
         -112
       ],
       "id": "0add1817-7afc-455f-9ea0-494c1c41d26c",
@@ -56,7 +56,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        848,
+        1056,
         -112
       ],
       "id": "f75035bb-268e-406e-ad6e-a590cd566e5b",
@@ -69,7 +69,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1056,
+        1264,
         -16
       ],
       "id": "4e325edc-b338-4898-ae89-f1e5ad1b6562",
@@ -105,7 +105,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1264,
+        1472,
         -16
       ],
       "id": "ca6afcf5-73d3-4824-b578-116ee1233069",
@@ -118,7 +118,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1488,
+        1696,
         16
       ],
       "id": "aec8cf19-f5ff-4fdf-8af1-fbc9744a8661",
@@ -148,7 +148,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1056,
+        1264,
         -208
       ],
       "id": "a33677a6-ceda-4adb-8ebb-4881803cea45",
@@ -172,6 +172,26 @@
             {
               "name": "fecha",
               "value": "={{ $json.fecha }}"
+            },
+            {
+              "name": "campana_id",
+              "value": "={{ $('Webhook_03_DiagnosticarLead').first().json.body.campana_id }}"
+            },
+            {
+              "name": "nombre",
+              "value": "={{ $('Webhook_03_DiagnosticarLead').first().json.body.nombre }}"
+            },
+            {
+              "name": "nicho",
+              "value": "={{ $('Webhook_03_DiagnosticarLead').first().json.body.nicho }}"
+            },
+            {
+              "name": "alcaldia",
+              "value": "={{ $('Webhook_03_DiagnosticarLead').first().json.body.alcaldia }}"
+            },
+            {
+              "name": "ciudad",
+              "value": "={{ $('Webhook_03_DiagnosticarLead').first().json.body.ciudad }}"
             }
           ]
         },
@@ -180,7 +200,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1264,
+        1472,
         -208
       ],
       "id": "da593ef6-c18c-4432-96f4-9f989d8c0b58",
@@ -213,7 +233,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        288,
+        496,
         0
       ],
       "id": "e35dddf9-1180-4021-bd4a-e2d77c75660c",
@@ -226,11 +246,39 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        496,
+        704,
         96
       ],
       "id": "5b996be6-64c5-44bf-ab35-0084c7174e88",
       "name": "CODE_SinLeadsParaDiagnostico"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/campanas/records/{{ $('Webhook_03_DiagnosticarLead').first().json.body.campana_id }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "estado",
+              "value": "flujo_3_diagnostico"
+            },
+            {
+              "name": "mensaje_con_redes",
+              "value": "Diagnosticando oportunidades de cada lead"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        80,
+        0
+      ],
+      "id": "b7cc627a-7d50-44ee-a85f-5118bfc2384a",
+      "name": "PB_EstadoCampana_Flujo3"
     }
   ],
   "pinData": {},
@@ -312,7 +360,7 @@
       "main": [
         [
           {
-            "node": "PB_LeerLeadsParaDiagnostico",
+            "node": "PB_EstadoCampana_Flujo3",
             "type": "main",
             "index": 0
           }
@@ -347,6 +395,17 @@
           }
         ]
       ]
+    },
+    "PB_EstadoCampana_Flujo3": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerLeadsParaDiagnostico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -355,9 +414,9 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "f9e80406-7b04-4648-93be-51f4dd64e099",
+  "versionId": "b2db2ecb-66c6-49bd-bb65-cadfd3a201d0",
   "meta": {
-    "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
+    "instanceId": "bb0f0382383d4f643708f73f17000961d8224166b1cf2ba0ee3d12dbba08515b"
   },
   "id": "qTkiZk_SR23VXTBIHGus0",
   "tags": []

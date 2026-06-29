@@ -307,3 +307,30 @@ button:disabled {
   font-size: 14px;
   font-weight: 700;
 }
+
+.log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.log-header strong {
+  margin: 0;
+  text-align: left;
+}
+
+.clear-log {
+  border: none;
+  background: #2a2a2d;
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px 12px;
+  border-radius: 12px;
+  opacity: 0.78;
+}
+
+.clear-log:active {
+  transform: scale(0.96);
+}

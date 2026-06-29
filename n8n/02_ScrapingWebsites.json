@@ -8,7 +8,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        384,
+        592,
         0
       ],
       "id": "9885c563-9226-4ff4-a0ab-a92a2246ebd1",
@@ -44,7 +44,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        -256,
+        -48,
         64
       ],
       "id": "5ea8dfbb-1959-4b7b-9797-14f277ac2ef1",
@@ -58,7 +58,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        592,
+        800,
         80
       ],
       "id": "72809fbb-bdfd-4840-831d-54e2e1b927b9",
@@ -249,7 +249,7 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        800,
+        1008,
         80
       ],
       "id": "4b401086-41dd-485c-ac06-7b8a99d3a997",
@@ -287,7 +287,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1200,
+        1408,
         -48
       ],
       "id": "a687114f-1784-44a7-a09b-bd14812a1313",
@@ -302,7 +302,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1376,
+        1584,
         -48
       ],
       "id": "34d3fc89-e3c2-4d40-8e9a-c14724e8c53e",
@@ -366,7 +366,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1568,
+        1776,
         -48
       ],
       "id": "057bc86b-d85a-4c34-af29-daf8598a0d26",
@@ -379,7 +379,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        144,
+        352,
         0
       ],
       "id": "2126d3f9-df51-4a56-b732-1285dd94f692",
@@ -440,7 +440,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1200,
+        1408,
         96
       ],
       "id": "47f624b9-0b27-4cd3-88f8-7573fa4e4f39",
@@ -500,7 +500,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1200,
+        1408,
         240
       ],
       "id": "5f3a8dea-defa-4847-8f3a-846bd711eff9",
@@ -560,7 +560,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1216,
+        1424,
         384
       ],
       "id": "b22d363e-6b32-4851-9a47-3cd007456b97",
@@ -620,7 +620,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1216,
+        1424,
         592
       ],
       "id": "44ba5b0b-1c5c-4542-876d-4f3fe099524f",
@@ -633,7 +633,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1888,
+        2096,
         624
       ],
       "id": "824251f4-ee74-468b-b5e0-faa6c0882dbc",
@@ -663,7 +663,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        608,
+        816,
         -160
       ],
       "id": "55583245-184c-456a-9e4b-41b045534726",
@@ -687,6 +687,26 @@
             {
               "name": "fecha",
               "value": "={{$json.fecha}}"
+            },
+            {
+              "name": "campana_id",
+              "value": "={{ $('Webhook').first().json.body.campana_id }}"
+            },
+            {
+              "name": "nombre",
+              "value": "={{ $('Webhook').first().json.body.nombre }}"
+            },
+            {
+              "name": "nicho",
+              "value": "={{ $('Webhook').first().json.body.nicho }}"
+            },
+            {
+              "name": "alcaldia",
+              "value": "={{ $('Webhook').first().json.body.alcaldia }}"
+            },
+            {
+              "name": "ciudad",
+              "value": "={{ $('Webhook').first().json.body.ciudad }}"
             }
           ]
         },
@@ -695,7 +715,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        816,
+        1024,
         -208
       ],
       "id": "23854ee6-eb9a-4534-95bf-86cec130ff6d",
@@ -728,7 +748,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        -64,
+        144,
         112
       ],
       "id": "3a7f9d51-8820-4b43-8e8d-319d18bacf16",
@@ -741,11 +761,39 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        144,
+        352,
         208
       ],
       "id": "7cea01e3-37b2-430f-89d0-b3800d7c246a",
       "name": "CODE_SinLeadsConWeb"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8091/api/collections/campanas/records/{{ $('Webhook').first().json.body.campana_id }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "estado",
+              "value": "flujo_2_webs"
+            },
+            {
+              "name": "mensaje_con_web ",
+              "value": "Buscando sitios web y redes sociales"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -240,
+        64
+      ],
+      "id": "521b531c-4707-42a2-acbb-35101f7bd048",
+      "name": "PB_EstadoCampana_Flujo2"
     }
   ],
   "pinData": {},
@@ -946,7 +994,7 @@
       "main": [
         [
           {
-            "node": "PB_LeerLeadsConWeb",
+            "node": "PB_EstadoCampana_Flujo2",
             "type": "main",
             "index": 0
           }
@@ -981,6 +1029,17 @@
           }
         ]
       ]
+    },
+    "PB_EstadoCampana_Flujo2": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerLeadsConWeb",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -989,9 +1048,9 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "92dccb42-6dda-41c1-9eb1-28b0904b56d8",
+  "versionId": "8f384d74-2a08-4673-b657-5db9406f90da",
   "meta": {
-    "instanceId": "363feec181ee095d766117f92f3c6a6898a7bdf4064bd1a3a8c47e0701081aae"
+    "instanceId": "bb0f0382383d4f643708f73f17000961d8224166b1cf2ba0ee3d12dbba08515b"
   },
   "id": "g0oYDWuGJtG69TKXyQimJ",
   "tags": []

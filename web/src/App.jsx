@@ -42,7 +42,6 @@ function App() {
   const [logs, setLogs] = useState([])
   const [stats, setStats] = useState({ pendientes: 0, enviados: 0, saltados: 0 })
   const [loading, setLoading] = useState(false)
-  const [ultimoLead, setUltimoLead] = useState(null)
   const [tab, setTab] = useState('leads')
   const [nicho, setNicho] = useState('Tamales')
   const [alcaldia, setAlcaldia] = useState('Coyoacan')
@@ -54,7 +53,7 @@ function App() {
   const [campanasLoading, setCampanasLoading] = useState(false)
 
   const log = (txt) => {
-    setLogs(prev => [`${new Date().toLocaleTimeString()} · ${txt}`, ...prev].slice(0, 4))
+  setLogs(prev => [`${new Date().toLocaleTimeString()} · ${txt}`, ...prev].slice(0, 8))
   }
 
   const cargarStats = async () => {
@@ -79,7 +78,7 @@ function App() {
 
  const cargarLead = async () => {
   setLoading(true)
-  log('🔄 Cargando siguiente')
+  log('🔎 Buscando lead pendiente')
 
   try {
     const res = await pb.collection('leads').getList(1, 1, {
@@ -92,7 +91,7 @@ function App() {
     if (!res.items || res.items.length === 0) {
       setLead(null)
       setMensaje('')
-      log(`📭 Sin leads pendientes. Total: ${res.totalItems}`)
+      log('🏁 No hay más leads pendientes')
       return
     }
 
@@ -116,6 +115,7 @@ function App() {
     setLoading(true)
 
     try {
+      log('📤 Enviando WhatsApp...')
       const resp = await fetch(N8N_SEND_WEBHOOK, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -128,59 +128,20 @@ function App() {
 
       if (!resp.ok) throw new Error('WAHA')
 
-      setUltimoLead({ ...lead, mensaje })
-      log(`✅ Enviado: ${lead.nombre}`)
+      log(`✅ Mensaje enviado: ${lead.nombre}`)
+      log('🧾 Seguimiento registrado')
       await cargarStats()
       await cargarLead()
-    } catch {
-      log('❌ Error WAHA')
-    } finally {
+    } catch (error) {
+  log(`❌ Error enviando: ${error.message}`)
+} finally {
       setLoading(false)
     }
   }
 
-  const saltar = async () => {
-    if (!lead) return
-    setLoading(true)
+  
 
-    try {
-      await pb.collection('leads').update(lead.id, {
-        estado: 'saltado_manual',
-        estado_mensaje: 'saltado',
-        ultimo_contacto: new Date().toISOString(),
-      })
 
-      setUltimoLead({ ...lead, fueSaltado: true })
-      log(`⏭ Saltado: ${lead.nombre}`)
-      await cargarLead()
-    } catch {
-      log('❌ Error al saltar')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const deshacer = async () => {
-    if (!ultimoLead) return
-    setLoading(true)
-
-    try {
-      await pb.collection('leads').update(ultimoLead.id, {
-        estado: 'nuevo',
-        estado_mensaje: 'generado',
-        fecha_envio: '',
-        ultimo_contacto: '',
-      })
-
-      log(`↩️ Deshecho: ${ultimoLead.nombre}`)
-      setUltimoLead(null)
-      await cargarLead()
-    } catch {
-      log('❌ Error al deshacer')
-    } finally {
-      setLoading(false)
-    }
-  }
 
         const cargarCampanas = async () => {
           setCampanasLoading(true)
@@ -218,8 +179,8 @@ function App() {
   const iniciarScraper = async () => {
     setScraperLoading(true)
 
-    log('🚀 Iniciando scraper')
-    log(`📍 Reservando ${cantidadCps} CPs`)
+    log('🚀 Iniciando campaña')
+    log(`📍 Seleccionando ${cantidadCps} códigos postales`)
 
     try {
       const resp = await fetch(
@@ -239,9 +200,9 @@ function App() {
 
       if (!resp.ok) throw new Error()
 
-      log('📦 Campaña creada')
-      log('🔍 Scraper ejecutándose')
-      log('✅ Flujo iniciado correctamente')
+      log('✅ Flujo 1 iniciado')
+      log('🌐 El pipeline continuará en n8n')
+      log('📊 Revisa Campañas para ver el avance')
       await cargarInfoScraper()
 
     } catch {
@@ -355,10 +316,20 @@ function App() {
         </section>
       )}
 
-      <section className="logs">
+     <section className="logs">
+      <div className="log-header">
         <strong>Log</strong>
-        {logs.map((l, i) => <p key={i}>{l}</p>)}
-      </section>
+        <button className="clear-log" onClick={() => setLogs([])}>
+          limpiar
+        </button>
+      </div>
+
+  {logs.length === 0 ? (
+    <p>Sin actividad todavía</p>
+  ) : (
+    logs.map((l, i) => <p key={i}>{l}</p>)
+  )}
+</section>
 
           </>
         )}
@@ -439,14 +410,26 @@ function App() {
 
 
         <div className="scraper-log">
+
+        <div className="log-header">
           <strong>Log scraper</strong>
 
-          {logs.length === 0 ? (
-            <p>Sin actividad todavía</p>
-          ) : (
-            logs.map((l, i) => <p key={i}>{l}</p>)
-          )}
+          <button
+            className="clear-log"
+            onClick={() => setLogs([])}
+          >
+            limpiar
+          </button>
+
         </div>
+
+  {logs.length === 0 ? (
+    <p>Sin actividad todavía</p>
+  ) : (
+    logs.map((l, i) => <p key={i}>{l}</p>)
+  )}
+
+</div>
 
         <button
           className="send"

@@ -1,0 +1,308 @@
+{
+  "name": "06_EnviarLeadManual",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "enviar-lead-manual",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -544,
+        0
+      ],
+      "id": "475ad2eb-7d3c-4494-87a0-3fb961214375",
+      "name": "Webhook_EnviarLeadManual",
+      "webhookId": "0d212316-4fb4-4aac-bbf2-3cd27e22c463"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\nconst lead_id = body.lead_id;\nlet telefono = String(body.telefono_limpio || body.telefono || '').replace(/\\D/g, '');\nconst mensaje = body.mensaje || '';\n\nif (!lead_id) throw new Error('Falta lead_id');\nif (!telefono) throw new Error('Falta telefono');\nif (!mensaje) throw new Error('Falta mensaje');\n\n// México:\n// si viene como 55XXXXXXXX, convertir a 52155XXXXXXXX\nif (telefono.length === 10) {\n  telefono = `521${telefono}`;\n}\n\n// si viene como 5255XXXXXXXX, probar formato WAHA visible 52155XXXXXXXX\nif (telefono.startsWith('52') && telefono.length === 12 && !telefono.startsWith('521')) {\n  telefono = `521${telefono.slice(2)}`;\n}\n\nreturn [\n  {\n    json: {\n      lead_id,\n      telefono,\n      chatId: `${telefono}@c.us`,\n      mensaje,\n      fecha_envio: new Date().toISOString(),\n      POCKETBASE_URL: 'http://host.docker.internal:8091',\n      WAHA_URL: 'http://host.docker.internal:3000',\n      session: 'default',\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        0
+      ],
+      "id": "4632aafa-ffc3-451d-b92d-bbb2ce4406bd",
+      "name": "CODE_NormalizarEnvio"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.WAHA_URL }}/api/sendText\n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "2cdb1e80acf84a70a40213c506fa3016"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session",
+              "value": "={{ $json.session }}"
+            },
+            {
+              "name": "chatId",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -128,
+        0
+      ],
+      "id": "7c7bf288-c9c7-411d-afed-0adeed9da3a3",
+      "name": "HTTP_WAHA_EnviarMensaje"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('CODE_NormalizarEnvio').first().json.POCKETBASE_URL }}/api/collections/leads/records/{{ $('CODE_NormalizarEnvio').first().json.lead_id }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "estado",
+              "value": "enviado_manual"
+            },
+            {
+              "name": "estado_mensaje",
+              "value": "enviado"
+            },
+            {
+              "name": "fecha_envio",
+              "value": "={{ $('CODE_NormalizarEnvio').first().json.fecha_envio }}"
+            },
+            {
+              "name": "ultimo_contacto",
+              "value": "={{ $('CODE_NormalizarEnvio').first().json.fecha_envio }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        528,
+        0
+      ],
+      "id": "87554120-2cca-4486-ac06-c2d413a566e0",
+      "name": "PB_MarcarLeadEnviado"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": true,\n  \"message\": \"mensaje enviado\",\n  \"lead_id\": \"{{ $('CODE_NormalizarEnvio').first().json.lead_id }}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        944,
+        0
+      ],
+      "id": "56d989a9-6c53-4f13-bf38-b923b91a8258",
+      "name": "RESP_EnviarLeadManual"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8091/api/collections/seguimientos/records",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "lead_id",
+              "value": "={{ $('CODE_NormalizarEnvio').first().json.lead_id }}"
+            },
+            {
+              "name": "tipo",
+              "value": "envio"
+            },
+            {
+              "name": "resultado",
+              "value": "enviado"
+            },
+            {
+              "name": "nota",
+              "value": "Mensaje enviado manualmente desde CRM. Chat refrescado en WAHA."
+            },
+            {
+              "name": "fecha",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        736,
+        0
+      ],
+      "id": "86fcf4b2-c730-477a-a93b-1099b1a51a29",
+      "name": "PB_CrearSeguimiento"
+    },
+    {
+      "parameters": {
+        "jsCode": "const normal = $('CODE_NormalizarEnvio').first().json;\nconst r = $json || {};\nconst data = r._data || {};\n\nreturn [{\n  json: {\n    ...normal,\n\n    enviado_por_waha: true,\n    waha_sin_respuesta: Object.keys(r).length === 0,\n\n    ack: r.ack ?? data.ack ?? '',\n    ackName: r.ackName || '',\n    fromMe: r.fromMe ?? data.id?.fromMe ?? '',\n    remote: data.id?.remote || r.to || normal.chatId,\n    body: r.body || r.text || normal.mensaje,\n    waha_message_id: r.id || data.id?._serialized || '',\n\n    raw: r\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        0
+      ],
+      "id": "7cf5d581-8cfb-4936-9733-f0562134719d",
+      "name": "CODE_RevisarRespuestaWAHA"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('CODE_NormalizarEnvio').first().json.WAHA_URL }}/api/default/chats/{{ encodeURIComponent($json.remote || $json.chatId) }}/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "10"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "2cdb1e80acf84a70a40213c506fa3016"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        288,
+        0
+      ],
+      "id": "38b262f8-594e-4662-84a2-47c82985d24b",
+      "name": "HTTP_WAHA_LeerChatDespuesEnvio",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook_EnviarLeadManual": {
+      "main": [
+        [
+          {
+            "node": "CODE_NormalizarEnvio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_NormalizarEnvio": {
+      "main": [
+        [
+          {
+            "node": "HTTP_WAHA_EnviarMensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_WAHA_EnviarMensaje": {
+      "main": [
+        [
+          {
+            "node": "CODE_RevisarRespuestaWAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_MarcarLeadEnviado": {
+      "main": [
+        [
+          {
+            "node": "PB_CrearSeguimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_CrearSeguimiento": {
+      "main": [
+        [
+          {
+            "node": "RESP_EnviarLeadManual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_RevisarRespuestaWAHA": {
+      "main": [
+        [
+          {
+            "node": "HTTP_WAHA_LeerChatDespuesEnvio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_WAHA_LeerChatDespuesEnvio": {
+      "main": [
+        [
+          {
+            "node": "PB_MarcarLeadEnviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "728979d4-a8d1-4cd0-bd60-4075eeb86da9",
+  "meta": {
+    "instanceId": "bb0f0382383d4f643708f73f17000961d8224166b1cf2ba0ee3d12dbba08515b"
+  },
+  "id": "MQHIdKc-3RaMMnK5wgTCb",
+  "tags": []
+}
