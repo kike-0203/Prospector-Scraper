@@ -334,3 +334,93 @@ button:disabled {
 .clear-log:active {
   transform: scale(0.96);
 }
+
+.campaign-active {
+  background: #17171a;
+  border: 1px solid #2a2a2e;
+  border-radius: 18px;
+  padding: 12px;
+  margin-bottom: 12px;
+  color: #f4f4f5;
+}
+
+.campaign-active span {
+  display: block;
+  font-size: 11px;
+  color: #a1a1aa;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.campaign-active strong {
+  display: block;
+  font-size: 20px;
+  margin-top: 4px;
+}
+
+.campaign-active p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #d4d4d8;
+}
+
+.change-campaign {
+  width: 100%;
+  margin-top: 10px;
+  background: #f4f4f5;
+  color: #111;
+  padding: 12px;
+  border-radius: 14px;
+}
+
+.campaign-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.campaign-list button {
+  background: #2a2a2e;
+  color: #fff;
+  padding: 12px;
+  border-radius: 14px;
+}
+
+.campana-editor {
+  margin-top: 16px;
+  background: #111;
+  color: white;
+  border-radius: 18px;
+  padding: 14px;
+  text-align: left;
+}
+
+.campana-editor h2 {
+  margin: 0 0 10px;
+  text-align: center;
+}
+
+.campana-editor label {
+  display: block;
+  margin-top: 12px;
+  font-weight: 800;
+}
+
+.campana-editor input {
+  width: 100%;
+  margin-top: 8px;
+  background: #f4f4f5;
+  color: #111;
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.campaign-status {
+  margin-top: 10px;
+  background: #222;
+  color: #fff;
+  padding: 10px;
+  border-radius: 12px;
+  text-align: center;
+  font-weight: 800;
+}

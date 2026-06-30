@@ -11,8 +11,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -544,
-        0
+        -448,
+        16
       ],
       "id": "475ad2eb-7d3c-4494-87a0-3fb961214375",
       "name": "Webhook_EnviarLeadManual",
@@ -25,8 +25,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -336,
-        0
+        -240,
+        16
       ],
       "id": "4632aafa-ffc3-451d-b92d-bbb2ce4406bd",
       "name": "CODE_NormalizarEnvio"
@@ -66,8 +66,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -128,
-        0
+        1088,
+        112
       ],
       "id": "7c7bf288-c9c7-411d-afed-0adeed9da3a3",
       "name": "HTTP_WAHA_EnviarMensaje"
@@ -102,8 +102,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        528,
-        0
+        -80,
+        464
       ],
       "id": "87554120-2cca-4486-ac06-c2d413a566e0",
       "name": "PB_MarcarLeadEnviado"
@@ -119,8 +119,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        944,
-        0
+        368,
+        464
       ],
       "id": "56d989a9-6c53-4f13-bf38-b923b91a8258",
       "name": "RESP_EnviarLeadManual"
@@ -159,8 +159,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        736,
-        0
+        144,
+        464
       ],
       "id": "86fcf4b2-c730-477a-a93b-1099b1a51a29",
       "name": "PB_CrearSeguimiento"
@@ -172,8 +172,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        80,
-        0
+        1664,
+        176
       ],
       "id": "7cf5d581-8cfb-4936-9733-f0562134719d",
       "name": "CODE_RevisarRespuestaWAHA"
@@ -204,13 +204,201 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        288,
-        0
+        -320,
+        464
       ],
       "id": "38b262f8-594e-4662-84a2-47c82985d24b",
       "name": "HTTP_WAHA_LeerChatDespuesEnvio",
       "alwaysOutputData": true,
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{$('CODE_NormalizarEnvio').first().json.POCKETBASE_URL}}/api/collections/campanas/records/{{$json.campana_id}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        144,
+        160
+      ],
+      "id": "85722640-d2a9-476f-8c22-9ada7ec81574",
+      "name": "PB_LeerCampana",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "={{$json.POCKETBASE_URL}}/api/collections/leads/records/{{$json.lead_id}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -48,
+        160
+      ],
+      "id": "6621f3a1-847c-4767-8e99-6ff9bf57f851",
+      "name": "PB_LeerLead"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        320,
+        32
+      ],
+      "id": "5904e998-d47d-4f35-92ee-ba7850cd299b",
+      "name": "Merge_LeadCampana"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        704,
+        48
+      ],
+      "id": "dc9dc07f-b70b-408a-bd46-3f04f239f1a7",
+      "name": "Merge_ConMaterial"
+    },
+    {
+      "parameters": {
+        "url": "={{$json.POCKETBASE_URL}}/api/collections/materiales_marketing/records/{{$json.material_id}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        528,
+        160
+      ],
+      "id": "843b7811-c774-4e67-9f12-675c2da19f1e",
+      "name": "PB_LeerMaterial",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('CODE_NormalizarEnvio').first().json.WAHA_URL }}/api/sendFile",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "2cdb1e80acf84a70a40213c506fa3016"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session",
+              "value": "={{ $('CODE_NormalizarEnvio').first().json.session }}"
+            },
+            {
+              "name": "chatId",
+              "value": "={{ $('CODE_NormalizarEnvio').first().json.chatId }}"
+            },
+            {
+              "name": "file",
+              "value": "={{ {   url: $('CODE_NormalizarEnvio').first().json.POCKETBASE_URL + \"/api/files/\" + $('PB_LeerMaterial').first().json.collectionId + \"/\" + $('PB_LeerMaterial').first().json.id + \"/\" + $('PB_LeerMaterial').first().json.archivo,   filename: $('PB_LeerMaterial').first().json.archivo,   mimetype: \"video/mp4\" } }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $('CODE_NormalizarEnvio').first().json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1456,
+        -16
+      ],
+      "id": "4fe2b883-41f0-4d96-88c6-08eb45818e13",
+      "name": "HTTP_WAHA_EnviarVideo"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d509279b-5711-4901-8046-2cee0b1069b0",
+              "leftValue": "{{ $json.tipo_envio }}",
+              "rightValue": "texto_material",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "40a87b10-3075-4764-af38-55da51b388d7",
+              "leftValue": "{{ $json.tipo }}",
+              "rightValue": "video",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "09d4085c-41ea-4b1f-8dab-c0cd724cabfc",
+              "leftValue": "{{ $json.archivo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        864,
+        112
+      ],
+      "id": "f59f9563-65cf-4016-9cc8-b7d7f6ddda37",
+      "name": "IF_TieneVideo"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1264,
+        -16
+      ],
+      "id": "57e992f8-0e77-4134-8a83-b70e290e356a",
+      "name": "Wait_2s",
+      "webhookId": "78252e05-50f3-4510-bc61-36bda197e738"
     }
   ],
   "pinData": {},
@@ -230,7 +418,12 @@
       "main": [
         [
           {
-            "node": "HTTP_WAHA_EnviarMensaje",
+            "node": "PB_LeerLead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge_LeadCampana",
             "type": "main",
             "index": 0
           }
@@ -242,6 +435,11 @@
         [
           {
             "node": "CODE_RevisarRespuestaWAHA",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait_2s",
             "type": "main",
             "index": 0
           }
@@ -291,6 +489,106 @@
           }
         ]
       ]
+    },
+    "PB_LeerCampana": {
+      "main": [
+        [
+          {
+            "node": "Merge_LeadCampana",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "PB_LeerLead": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerCampana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge_LeadCampana": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerMaterial",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge_ConMaterial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge_ConMaterial": {
+      "main": [
+        [
+          {
+            "node": "IF_TieneVideo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_LeerMaterial": {
+      "main": [
+        [
+          {
+            "node": "Merge_ConMaterial",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP_WAHA_EnviarVideo": {
+      "main": [
+        [
+          {
+            "node": "CODE_RevisarRespuestaWAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_TieneVideo": {
+      "main": [
+        [
+          {
+            "node": "HTTP_WAHA_EnviarMensaje",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP_WAHA_EnviarMensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait_2s": {
+      "main": [
+        [
+          {
+            "node": "HTTP_WAHA_EnviarVideo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -299,7 +597,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "728979d4-a8d1-4cd0-bd60-4075eeb86da9",
+  "versionId": "8c52f176-b5ed-46f9-9ba0-4cfdf5bb8b35",
   "meta": {
     "instanceId": "bb0f0382383d4f643708f73f17000961d8224166b1cf2ba0ee3d12dbba08515b"
   },

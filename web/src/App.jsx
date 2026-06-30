@@ -49,21 +49,35 @@ function App() {
   const [scraperLoading, setScraperLoading] = useState(false)
   const [cpsDisponibles, setCpsDisponibles] = useState(0)
   const [ultimaCampana, setUltimaCampana] = useState(null)
+  const [materialActivo, setMaterialActivo] = useState(null)
   const [campanas, setCampanas] = useState([])
+  const [mostrarCampanas, setMostrarCampanas] = useState(false)
   const [campanasLoading, setCampanasLoading] = useState(false)
+  const [campanaEditando, setCampanaEditando] = useState(null)
+  const [tipoEnvioEdit, setTipoEnvioEdit] = useState('texto')
+  const [archivoMaterial, setArchivoMaterial] = useState(null)
+  const [guardandoCampana, setGuardandoCampana] = useState(false)
+  const [mensajeCampana, setMensajeCampana] = useState('')
+
 
   const log = (txt) => {
   setLogs(prev => [`${new Date().toLocaleTimeString()} · ${txt}`, ...prev].slice(0, 8))
   }
 
-  const cargarStats = async () => {
+  const cargarStats = async (campanaId = ultimaCampana?.id) => {
     try {
-      const pendientes = await pb.collection('leads').getList(1, 1, { filter: filtroPendientes })
-      const enviados = await pb.collection('leads').getList(1, 1, {
-        filter: `estado="enviado_manual" || estado_mensaje="enviado"`,
+      const filtroCampana = campanaId ? ` && campana_id="${campanaId}"` : ''
+
+      const pendientes = await pb.collection('leads').getList(1, 1, {
+        filter: `${filtroPendientes}${filtroCampana}`,
       })
+
+      const enviados = await pb.collection('leads').getList(1, 1, {
+        filter: `(estado="enviado_manual" || estado_mensaje="enviado")${filtroCampana}`,
+      })
+
       const saltados = await pb.collection('leads').getList(1, 1, {
-        filter: `estado="saltado_manual" || estado_mensaje="saltado"`,
+        filter: `(estado="saltado_manual" || estado_mensaje="saltado")${filtroCampana}`,
       })
 
       setStats({
@@ -71,8 +85,9 @@ function App() {
         enviados: enviados.totalItems,
         saltados: saltados.totalItems,
       })
-    } catch {
-      log('❌ Error cargando contadores')
+    } catch (error) {
+      console.error('ERROR STATS:', error)
+      log(`❌ Error cargando contadores: ${error.message}`)
     }
   }
 
@@ -81,8 +96,12 @@ function App() {
   log('🔎 Buscando lead pendiente')
 
   try {
+    const filtroCampana = ultimaCampana?.id
+      ? ` && campana_id="${ultimaCampana.id}"`
+      : ''
+
     const res = await pb.collection('leads').getList(1, 1, {
-      filter: filtroPendientes,
+      filter: `${filtroPendientes}${filtroCampana}`,
       sort: '-score',
     })
 
@@ -110,34 +129,36 @@ function App() {
   }
 }
 
-  const enviar = async () => {
-    if (!lead) return
-    setLoading(true)
+ const enviar = async () => {
+  if (!lead) return
+  setLoading(true)
 
-    try {
-      log('📤 Enviando WhatsApp...')
-      const resp = await fetch(N8N_SEND_WEBHOOK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lead_id: lead.id,
-          telefono: lead.telefono_limpio,
-          mensaje,
-        }),
-      })
+  try {
+    log('📤 Enviando WhatsApp...')
 
-      if (!resp.ok) throw new Error('WAHA')
+    const resp = await fetch(N8N_SEND_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lead_id: lead.id,
+        telefono: lead.telefono_limpio,
+        mensaje,
+        campana_id: ultimaCampana?.id || lead.campana_id || '',
+      }),
+    })
 
-      log(`✅ Mensaje enviado: ${lead.nombre}`)
-      log('🧾 Seguimiento registrado')
-      await cargarStats()
-      await cargarLead()
-    } catch (error) {
-  log(`❌ Error enviando: ${error.message}`)
-} finally {
-      setLoading(false)
-    }
+    if (!resp.ok) throw new Error('WAHA')
+
+    log(`✅ Mensaje enviado: ${lead.nombre}`)
+    log('🧾 Seguimiento registrado')
+    await cargarStats(ultimaCampana?.id)
+    await cargarLead()
+  } catch (error) {
+    log(`❌ Error enviando: ${error.message}`)
+  } finally {
+    setLoading(false)
   }
+}
 
   
 
@@ -170,11 +191,79 @@ function App() {
         })
 
         setCpsDisponibles(cps.totalItems)
-        setUltimaCampana(campanas.items[0] || null)
+        const campanaActual = campanas.items[0] || null
+        setCampanas(campanas.items || [])
+        setUltimaCampana(campanaActual)
+
+        if (campanaActual?.material_id) {
+          const material = await pb.collection('materiales_marketing').getOne(campanaActual.material_id)
+          setMaterialActivo(material)
+        } else {
+          setMaterialActivo(null)
+        }
       } catch {
         log('❌ Error cargando info scraper')
       }
     }
+
+  const abrirEditorCampana = (campana) => {
+      setCampanaEditando(campana)
+      setTipoEnvioEdit(campana.tipo_envio || 'texto')
+      setArchivoMaterial(null)
+    }
+
+    const guardarCampana = async () => {
+        if (!campanaEditando) return
+
+        setGuardandoCampana(true)
+        setMensajeCampana('⏳ Guardando campaña...')
+
+        try {
+          let materialId = campanaEditando.material_id || ''
+
+          if (archivoMaterial) {
+            let tipo = 'video'
+
+            if (archivoMaterial.type.startsWith('image')) tipo = 'imagen'
+            if (archivoMaterial.type === 'application/pdf') tipo = 'pdf'
+            if (archivoMaterial.type.startsWith('audio')) tipo = 'audio'
+
+            const formData = new FormData()
+            formData.append('nombre', archivoMaterial.name)
+            formData.append('tipo', tipo)
+            formData.append('archivo', archivoMaterial)
+            formData.append('activo', 'true')
+            formData.append('orden', '1')
+
+            setMensajeCampana('📤 Subiendo material...')
+
+            const material = await pb.collection('materiales_marketing').create(formData)
+            materialId = material.id
+          }
+
+          setMensajeCampana('💾 Actualizando campaña...')
+
+          const actualizada = await pb.collection('campanas').update(campanaEditando.id, {
+            tipo_envio: tipoEnvioEdit,
+            material_id: tipoEnvioEdit === 'texto' ? '' : materialId,
+          })
+
+          setUltimaCampana(actualizada)
+          setCampanaEditando(null)
+          setArchivoMaterial(null)
+
+          await cargarCampanas()
+
+          setMensajeCampana('✅ Campaña guardada correctamente')
+          log('✅ Campaña actualizada')
+        } catch (error) {
+          console.error('ERROR GUARDAR CAMPAÑA:', error)
+          setMensajeCampana(`❌ Error: ${error.message}`)
+          log(`❌ Error guardando campaña: ${error.message}`)
+        } finally {
+          setGuardandoCampana(false)
+        }
+      }
 
   const iniciarScraper = async () => {
     setScraperLoading(true)
@@ -230,9 +319,17 @@ function App() {
     .slice(0, 4)
 
   useEffect(() => {
-  cargarLead()
-  cargarStats()
+  cargarInfoScraper()
   }, [])
+
+  useEffect(() => {
+  if (!ultimaCampana) return
+
+  cargarLead()
+  cargarStats(ultimaCampana.id)
+}, [ultimaCampana])
+
+  
 
   useEffect(() => {
   cargarInfoScraper()
@@ -272,6 +369,68 @@ function App() {
 
           {tab === 'leads' && (
               <>
+
+      <section className="campaign-active">
+        <span>Campaña activa</span>
+        <strong>{ultimaCampana?.nicho || 'Sin campaña'}</strong>
+        <p>{ultimaCampana?.alcaldia || 'Sin alcaldía'}</p>
+        <p>
+          Tipo: {ultimaCampana?.tipo_envio === 'texto_material'
+            ? 'Texto + material'
+            : 'Solo texto'}
+        </p>
+        <p>Material: {materialActivo?.nombre || 'Sin material'}</p>
+
+        <button className="change-campaign" onClick={() => setMostrarCampanas(!mostrarCampanas)}>
+          Cambiar campaña
+        </button>
+
+        {mostrarCampanas && (
+          <div className="campaign-list">
+            {campanas.map((c) => (
+              <button
+                key={c.id}
+
+                onClick={async () => {
+                  setUltimaCampana(c)
+                  setMostrarCampanas(false)
+                  setLead(null)
+                  setMensaje('')
+
+                  if (c.material_id) {
+                    const material = await pb.collection('materiales_marketing').getOne(c.material_id)
+                    setMaterialActivo(material)
+                  } else {
+                    setMaterialActivo(null)
+                  }
+
+                  await cargarStats(c.id)
+
+                  const filtroCampana = ` && campana_id="${c.id}"`
+                  const res = await pb.collection('leads').getList(1, 1, {
+                    filter: `${filtroPendientes}${filtroCampana}`,
+                    sort: '-score',
+                  })
+
+                  if (res.items.length > 0) {
+                    const item = res.items[0]
+                    setLead(item)
+                    setMensaje(item.mensaje || '')
+                    log(`📣 Campaña activa: ${c.nicho}`)
+                    log(`📋 Lead: ${item.nombre || 'sin nombre'}`)
+                  } else {
+                    log(`📣 Campaña activa: ${c.nicho}`)
+                    log('🏁 No hay leads pendientes en esta campaña')
+                  }
+                }}
+              >
+                {c.nicho} · {c.alcaldia}
+              </button>
+            ))}
+          </div>
+        )}
+
+      </section>
 
       <section className="stats">
         <div><span>Pendientes</span><strong>{stats.pendientes}</strong></div>
@@ -347,6 +506,7 @@ function App() {
           onChange={(e) => setNicho(e.target.value)}
         >
           <option>Tamales</option>
+          <option>Talleres Mecánicos</option>
           <option>Dentistas</option>
           <option>Tacos</option>
           <option>Pozolerias</option>
@@ -469,10 +629,74 @@ function App() {
                 <p>CPs: {c.total_busquedas || 0}</p>
                 <p>Procesadas: {c.busquedas_procesadas || 0}</p>
                 <p>Leads: {c.total_leads || 0}</p>
+                <button
+                className="send"
+                onClick={() => abrirEditorCampana(c)}
+              >
+                Configurar envío
+              </button>
               </div>
             ))
           )}
         </div>
+        {campanaEditando && (
+          <div className="campana-editor">
+            <h2>Configurar campaña</h2>
+
+            <p><strong>{campanaEditando.nicho}</strong></p>
+            <p>{campanaEditando.alcaldia}</p>
+
+            <label>Tipo de envío</label>
+
+            <select
+              className="big-select"
+              value={tipoEnvioEdit}
+              onChange={(e) => setTipoEnvioEdit(e.target.value)}
+            >
+              <option value="texto">Solo texto</option>
+              <option value="texto_material">Texto + material</option>
+            </select>
+
+            {tipoEnvioEdit === 'texto_material' && (
+              <>
+                <label>Subir material</label>
+                <input
+                  type="file"
+                  accept="video/*,image/*,.pdf"
+                  onChange={(e) => setArchivoMaterial(e.target.files[0])}
+                />
+
+                <p>
+                  Archivo: {archivoMaterial?.name || 'Ninguno seleccionado'}
+                </p>
+              </>
+            )}
+
+            <button
+            className="send"
+            onClick={guardarCampana}
+            disabled={guardandoCampana}
+          >
+            {guardandoCampana ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+
+          {mensajeCampana && (
+            <p className="campaign-status">
+              {mensajeCampana}
+            </p>
+          )}
+
+          <button
+            className="undo"
+            onClick={() => setCampanaEditando(null)}
+          >
+            Cancelar
+          </button>
+
+
+
+          </div>
+        )}
       </section>
     )}
 
