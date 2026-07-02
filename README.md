@@ -1,3 +1,38 @@
+# Prospector-Scraper
+
+## Vista general de workflows
+
+<p align="center">
+  <a href="docs/1.jpg">
+    <img src="docs/1.jpg" width="48%">
+  </a>
+  <a href="docs/2.jpg">
+    <img src="docs/2.jpg" width="48%">
+  </a>
+</p>
+
+<p align="center">
+  <a href="docs/3.jpg">
+    <img src="docs/3.jpg" width="48%">
+  </a>
+  <a href="docs/4.jpg">
+    <img src="docs/4.jpg" width="48%">
+  </a>
+</p>
+
+<p align="center">
+  <a href="docs/5.jpg">
+    <img src="docs/5.jpg" width="48%">
+  </a>
+  <a href="docs/6.jpg">
+    <img src="docs/6.jpg" width="48%">
+  </a>
+</p>
+
+---
+
+## Flujo General
+
 ## Flujo General
 
 1. Usuario crea campaña
