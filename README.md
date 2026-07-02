@@ -1,3 +1,20 @@
+## 📱 Demo de la aplicación
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="docs/1.gif" width="320"><br>
+      <b>Crear campaña</b>
+    </td>
+    <td width="30"></td>
+    <td align="center">
+      <img src="docs/2.gif" width="320"><br>
+      <b>Dashboard en tiempo real</b>
+    </td>
+  </tr>
+</table>
+
+
 # Prospector-Scraper
 
 ## Vista general de workflows
