@@ -5,7 +5,7 @@ import './debug-env.js'
 
 const PB_URL =
   import.meta.env.VITE_PB_URL ||
-  'https://wide-clara-prefer-donate.trycloudflare.com'
+  'https://sacred-ways-undertaken-had.trycloudflare.com'
 
 const N8N_SEND_WEBHOOK =
   import.meta.env.VITE_N8N_SEND_WEBHOOK ||
