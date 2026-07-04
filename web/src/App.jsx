@@ -3,17 +3,30 @@ import PocketBase from 'pocketbase'
 import './App.css'
 import './debug-env.js'
 
-const PB_URL =
-  import.meta.env.VITE_PB_URL ||
-  'https://sacred-ways-undertaken-had.trycloudflare.com'
+const PB_URL = import.meta.env.VITE_PB_URL;
 
 const N8N_SEND_WEBHOOK =
-  import.meta.env.VITE_N8N_SEND_WEBHOOK ||
-  'https://erupt-theater-sectional.ngrok-free.dev/webhook/enviar-lead-manual'
+  import.meta.env.VITE_N8N_SEND_WEBHOOK;
 
 const N8N_SCRAPER_WEBHOOK =
-  import.meta.env.VITE_N8N_SCRAPER_WEBHOOK ||
-  'https://erupt-theater-sectional.ngrok-free.dev/webhook/iniciar-scraper'
+  import.meta.env.VITE_N8N_SCRAPER_WEBHOOK;
+
+console.log("ENV:", import.meta.env);
+console.log("VITE_PB_URL:", import.meta.env.VITE_PB_URL);
+console.log("VITE_N8N_SEND_WEBHOOK:", import.meta.env.VITE_N8N_SEND_WEBHOOK);
+console.log("VITE_N8N_SCRAPER_WEBHOOK:", import.meta.env.VITE_N8N_SCRAPER_WEBHOOK);
+
+// const PB_URL =
+//  import.meta.env.VITE_PB_URL ||
+//  'https://above-observe-sometimes-justice.trycloudflare.com'
+
+// const N8N_SEND_WEBHOOK =
+//  import.meta.env.VITE_N8N_SEND_WEBHOOK ||
+//  'https://erupt-theater-sectional.ngrok-free.dev/webhook/enviar-lead-manual'
+
+// const N8N_SCRAPER_WEBHOOK =
+//  import.meta.env.VITE_N8N_SCRAPER_WEBHOOK ||
+//  'https://erupt-theater-sectional.ngrok-free.dev/webhook/iniciar-scraper'
 
 const pb = new PocketBase(PB_URL)
 pb.autoCancellation(false)
