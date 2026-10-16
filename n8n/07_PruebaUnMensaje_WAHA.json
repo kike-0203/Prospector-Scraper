@@ -1,0 +1,143 @@
+{
+  "id": "prospector-wa-test-50b4805c",
+  "name": "07_PruebaUnMensaje_WAHA",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "id": "f72ab616-f077-4939-9883-2ccc4e94e3d4",
+      "name": "Al hacer clic en Ejecutar"
+    },
+    {
+      "parameters": {
+        "jsCode": "const numero = 'PON_AQUI_TU_NUMERO';\nconst mensaje = 'Prueba de Prospector-Scraper';\n\nconst digitos = numero.replace(/\\D/g, '');\nif (!/^\\d{10,15}$/.test(digitos)) throw new Error('Escribe tu numero de WhatsApp con codigo de pais o 10 digitos de Mexico');\nif (!mensaje.trim()) throw new Error('Escribe un mensaje de prueba');\nconst telefono = digitos.length === 10 ? `521${digitos}` : (digitos.startsWith('52') && digitos.length === 12 ? `521${digitos.slice(2)}` : digitos);\nreturn [{ json: { session: 'default', chatId: `${telefono}@c.us`, text: mensaje } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "id": "73e17718-9828-4f6f-b380-9a426f745501",
+      "name": "DatosPrueba"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:3001/api/sessions/default",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        680,
+        300
+      ],
+      "id": "5a91ce70-c3d1-4eaf-930f-3fafcc77c02a",
+      "name": "Comprobar sesion default"
+    },
+    {
+      "parameters": {
+        "jsCode": "const sesion = $input.first().json;\nif (sesion.name !== 'default' || sesion.status !== 'WORKING') throw new Error('La sesion default no esta vinculada y lista en WAHA');\nreturn [{ json: $('DatosPrueba').first().json }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ],
+      "id": "21ea0a4c-57de-4bcd-b311-14ddd84fc757",
+      "name": "Exigir sesion WORKING"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3001/api/sendText",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session",
+              "value": "={{ $json.session }}"
+            },
+            {
+              "name": "chatId",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1120,
+        300
+      ],
+      "id": "8d841de2-3d4f-44c0-9177-8e680265b436",
+      "name": "Enviar un solo mensaje"
+    }
+  ],
+  "connections": {
+    "Al hacer clic en Ejecutar": {
+      "main": [
+        [
+          {
+            "node": "DatosPrueba",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DatosPrueba": {
+      "main": [
+        [
+          {
+            "node": "Comprobar sesion default",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comprobar sesion default": {
+      "main": [
+        [
+          {
+            "node": "Exigir sesion WORKING",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exigir sesion WORKING": {
+      "main": [
+        [
+          {
+            "node": "Enviar un solo mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

@@ -29,6 +29,16 @@ En la instalación existente, el Compose de WAHA está fuera de este repositorio
 La instancia local de n8n guarda la clave WAHA en una credencial cifrada de tipo **Header Auth** con la cabecera `X-Api-Key`. Las copias publicadas de los workflows se actualizaron junto con la rotación de la clave. Los JSON de `n8n/` son exportaciones portables: usan `$env.WAHA_API_KEY` y requieren configurar esa variable en una nueva instancia o sustituirla por una credencial Header Auth propia. Nunca pongas esta clave en `web/.env` ni en un archivo versionado.
 
 
+## Prueba manual de un solo mensaje
+
+En la instancia local de n8n existe el workflow inactivo `07_PruebaUnMensaje_WAHA`. No modifica leads ni campañas. El JSON de `n8n/` es una plantilla sin ID de credencial; tras importarlo en otra instancia, asigna una credencial Header Auth con la cabecera `X-Api-Key` a sus dos nodos HTTP.
+
+1. Vincula la sesión `default` en WAHA y comprueba que su estado sea `WORKING`.
+2. Abre `07_PruebaUnMensaje_WAHA` en n8n y edita `DatosPrueba`: sustituye `PON_AQUI_TU_NUMERO` por tu número de WhatsApp y revisa el texto de prueba.
+3. Pulsa **Execute workflow** una sola vez. El flujo valida la sesión antes de llamar una vez a `/api/sendText`. Revisa el resultado del nodo `Enviar un solo mensaje` y la recepción en tu teléfono.
+
+El webhook `06_EnviarLeadManual` de producción todavía tiene deshabilitado su nodo de envío de texto. No uses el botón **ENVIAR WHATSAPP** de la aplicación como prueba de entrega hasta habilitar y validar ese recorrido. Su comprobación de respuesta ya rechaza resultados vacíos de WAHA para no marcar leads como enviados sin confirmación.
+
 ## Vista general de workflows
 
 <p align="center">

@@ -167,7 +167,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const normal = $('CODE_NormalizarEnvio').first().json;\nconst r = $json || {};\nconst data = r._data || {};\n\nreturn [{\n  json: {\n    ...normal,\n\n    enviado_por_waha: true,\n    waha_sin_respuesta: Object.keys(r).length === 0,\n\n    ack: r.ack ?? data.ack ?? '',\n    ackName: r.ackName || '',\n    fromMe: r.fromMe ?? data.id?.fromMe ?? '',\n    remote: data.id?.remote || r.to || normal.chatId,\n    body: r.body || r.text || normal.mensaje,\n    waha_message_id: r.id || data.id?._serialized || '',\n\n    raw: r\n  }\n}];"
+        "jsCode": "const normal = $('CODE_NormalizarEnvio').first().json;\nconst r = $json || {};\nconst data = r._data || {};\nconst messageId = r.id || data.id?._serialized || r.messageId || r.message?.id;\nif (!messageId || r.error || r.statusCode >= 400) {\n  throw new Error('WAHA no confirmo el envio; no se marcara el lead como enviado');\n}\n\nreturn [{\n  json: {\n    ...normal,\n\n    enviado_por_waha: true,\n    waha_sin_respuesta: Object.keys(r).length === 0,\n\n    ack: r.ack ?? data.ack ?? '',\n    ackName: r.ackName || '',\n    fromMe: r.fromMe ?? data.id?.fromMe ?? '',\n    remote: data.id?.remote || r.to || normal.chatId,\n    body: r.body || r.text || normal.mensaje,\n    waha_message_id: messageId,\n\n    raw: r\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
