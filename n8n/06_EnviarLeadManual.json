@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\nconst lead_id = body.lead_id;\nlet telefono = String(body.telefono_limpio || body.telefono || '').replace(/\\D/g, '');\nconst mensaje = body.mensaje || '';\n\nif (!lead_id) throw new Error('Falta lead_id');\nif (!telefono) throw new Error('Falta telefono');\nif (!mensaje) throw new Error('Falta mensaje');\n\n// México:\n// si viene como 55XXXXXXXX, convertir a 52155XXXXXXXX\nif (telefono.length === 10) {\n  telefono = `521${telefono}`;\n}\n\n// si viene como 5255XXXXXXXX, probar formato WAHA visible 52155XXXXXXXX\nif (telefono.startsWith('52') && telefono.length === 12 && !telefono.startsWith('521')) {\n  telefono = `521${telefono.slice(2)}`;\n}\n\nreturn [\n  {\n    json: {\n      lead_id,\n      telefono,\n      chatId: `${telefono}@c.us`,\n      mensaje,\n      fecha_envio: new Date().toISOString(),\n      POCKETBASE_URL: 'http://host.docker.internal:8091',\n      WAHA_URL: 'http://host.docker.internal:3000',\n      session: 'default',\n    }\n  }\n];"
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\nconst lead_id = body.lead_id;\nlet telefono = String(body.telefono_limpio || body.telefono || '').replace(/\\D/g, '');\nconst mensaje = body.mensaje || '';\n\nif (!lead_id) throw new Error('Falta lead_id');\nif (!telefono) throw new Error('Falta telefono');\nif (!mensaje) throw new Error('Falta mensaje');\n\n// México:\n// si viene como 55XXXXXXXX, convertir a 52155XXXXXXXX\nif (telefono.length === 10) {\n  telefono = `521${telefono}`;\n}\n\n// si viene como 5255XXXXXXXX, probar formato WAHA visible 52155XXXXXXXX\nif (telefono.startsWith('52') && telefono.length === 12 && !telefono.startsWith('521')) {\n  telefono = `521${telefono.slice(2)}`;\n}\n\nreturn [\n  {\n    json: {\n      lead_id,\n      telefono,\n      chatId: `${telefono}@c.us`,\n      mensaje,\n      fecha_envio: new Date().toISOString(),\n      POCKETBASE_URL: 'http://host.docker.internal:8091',\n      WAHA_URL: 'http://host.docker.internal:3001',\n      session: 'default',\n    }\n  }\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -40,7 +40,7 @@
           "parameters": [
             {
               "name": "X-Api-Key",
-              "value": "2cdb1e80acf84a70a40213c506fa3016"
+              "value": "={{ $env.WAHA_API_KEY }}"
             }
           ]
         },
@@ -195,7 +195,7 @@
           "parameters": [
             {
               "name": "X-Api-Key",
-              "value": "2cdb1e80acf84a70a40213c506fa3016"
+              "value": "={{ $env.WAHA_API_KEY }}"
             }
           ]
         },
@@ -296,7 +296,7 @@
           "parameters": [
             {
               "name": "X-Api-Key",
-              "value": "2cdb1e80acf84a70a40213c506fa3016"
+              "value": "={{ $env.WAHA_API_KEY }}"
             }
           ]
         },

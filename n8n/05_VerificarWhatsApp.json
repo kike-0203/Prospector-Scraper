@@ -64,7 +64,7 @@
     },
     {
       "parameters": {
-        "url": "http://host.docker.internal:3000/api/contacts/check-exists",
+        "url": "http://host.docker.internal:3001/api/contacts/check-exists",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -83,7 +83,7 @@
           "parameters": [
             {
               "name": "X-Api-Key",
-              "value": "2cdb1e80acf84a70a40213c506fa3016"
+              "value": "={{ $env.WAHA_API_KEY }}"
             }
           ]
         },

@@ -1,0 +1,530 @@
+@echo off
+setlocal
+set "SELF=%~f0"
+set "TMP_PS1=%TEMP%\ABRIR_PROSPECTOR_%RANDOM%_%RANDOM%.ps1"
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$lines = Get-Content -LiteralPath $env:SELF; $marker = [Array]::IndexOf($lines, '#<POWERSHELL>'); if ($marker -lt 0) { exit 1 }; [System.IO.File]::WriteAllLines($env:TMP_PS1, $lines[($marker + 1)..($lines.Length - 1)], (New-Object System.Text.UTF8Encoding($false)))"
+
+if errorlevel 1 (
+  echo No pude preparar el launcher.
+  pause
+  exit /b 1
+)
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%TMP_PS1%" %*
+del /q "%TMP_PS1%" >nul 2>&1
+exit /b
+
+#<POWERSHELL>
+$ErrorActionPreference = 'Continue'
+$Host.UI.RawUI.WindowTitle = 'Prospector Scraper - Launcher'
+
+# ==============================
+# CONFIGURACION DEL PROYECTO
+# ==============================
+$ProjectRoot      = Split-Path -Parent $env:SELF
+$ReactDir        = Join-Path $ProjectRoot 'web'
+$PocketBaseDir   = ''
+$EnvFile         = Join-Path $ReactDir '.env'
+$CloudflaredExe  = ''
+$NgrokExe        = ''
+$DockerDesktop   = 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
+
+$ReactPort       = 5173
+$PocketBasePort  = 8091
+$N8nPort         = 5678
+$WahaPort        = 3001
+$N8nContainer    = 'n8n'
+$WahaContainer   = 'waha-test-waha-1'
+$LocalConfig     = Join-Path $ProjectRoot 'launcher.local.ps1'
+if (Test-Path -LiteralPath $LocalConfig) { . $LocalConfig }
+
+# Archivos temporales, no se crean logs dentro del proyecto.
+$RuntimeDir      = Join-Path $env:TEMP 'ProspectorScraperLauncher'
+$ReactUrlFile    = Join-Path $RuntimeDir 'react_url.txt'
+$PocketBaseUrlFile = Join-Path $RuntimeDir 'pb_url.txt'
+$ReactPidFile    = Join-Path $RuntimeDir 'react_window_pid.txt'
+$CfHelperFile    = Join-Path $RuntimeDir 'cloudflare_helper.ps1'
+New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
+
+function Write-Title {
+  Clear-Host
+  Write-Host '========================================' -ForegroundColor Cyan
+  Write-Host '        PROSPECTOR SCRAPER' -ForegroundColor Cyan
+  Write-Host '========================================' -ForegroundColor Cyan
+  Write-Host ''
+}
+
+function Test-Port([int]$Port) {
+  try {
+    return [bool](Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction Stop | Select-Object -First 1)
+  } catch {
+    return $false
+  }
+}
+
+function Wait-Port([int]$Port, [int]$Seconds = 40) {
+  for ($i = 0; $i -lt $Seconds; $i++) {
+    if (Test-Port $Port) { return $true }
+    Start-Sleep -Seconds 1
+  }
+  return $false
+}
+
+function Test-DockerReady {
+  docker info *> $null
+  return ($LASTEXITCODE -eq 0)
+}
+
+function Ensure-Docker {
+  if (Test-DockerReady) {
+    Write-Host '[OK] Docker Desktop ya esta listo.' -ForegroundColor Green
+    return $true
+  }
+
+  Write-Host '[...] Docker Desktop no esta listo. Intentando abrirlo...' -ForegroundColor Yellow
+  if (!(Test-Path $DockerDesktop)) {
+    Write-Host "[ERROR] No encontre Docker Desktop en: $DockerDesktop" -ForegroundColor Red
+    return $false
+  }
+
+  Start-Process $DockerDesktop | Out-Null
+  Write-Host '[...] Esperando a que Docker responda...' -ForegroundColor Yellow
+  for ($i = 0; $i -lt 90; $i++) {
+    if (Test-DockerReady) {
+      Write-Host '[OK] Docker Desktop esta listo.' -ForegroundColor Green
+      return $true
+    }
+    Start-Sleep -Seconds 2
+  }
+
+  Write-Host '[ERROR] Docker no respondio a tiempo.' -ForegroundColor Red
+  return $false
+}
+
+function Get-ContainerState([string]$Name) {
+  try {
+    return (docker inspect -f '{{.State.Status}}' $Name 2>$null).Trim()
+  } catch {
+    return ''
+  }
+}
+
+function Ensure-Container([string]$Name, [string]$Label) {
+  $state = Get-ContainerState $Name
+  if ($state -eq 'running') {
+    Write-Host "[OK] $Label ya esta activo." -ForegroundColor Green
+    return $true
+  }
+
+  if ([string]::IsNullOrWhiteSpace($state)) {
+    Write-Host "[ERROR] No existe el contenedor '$Name' para $Label." -ForegroundColor Red
+    return $false
+  }
+
+  Write-Host "[...] Iniciando $Label..." -ForegroundColor Yellow
+  docker start $Name | Out-Null
+  Start-Sleep -Seconds 2
+  if ((Get-ContainerState $Name) -eq 'running') {
+    Write-Host "[OK] $Label iniciado." -ForegroundColor Green
+    return $true
+  }
+
+  Write-Host "[ERROR] No pude iniciar $Label." -ForegroundColor Red
+  return $false
+}
+
+function Open-PowerShellWindow([string]$Title, [string]$Command) {
+  $safeTitle = $Title.Replace("'", "''")
+  $full = "`$Host.UI.RawUI.WindowTitle='$safeTitle'; `$ErrorActionPreference='Continue'; $Command"
+  return Start-Process powershell.exe -PassThru -ArgumentList '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $full
+}
+
+function Get-NgrokUrl {
+  try {
+    $data = Invoke-RestMethod -Uri 'http://127.0.0.1:4040/api/tunnels' -TimeoutSec 3
+    return (($data.tunnels | Where-Object { $_.proto -eq 'https' } | Select-Object -First 1).public_url)
+  } catch {
+    return ''
+  }
+}
+
+function Ensure-Ngrok {
+  $current = Get-NgrokUrl
+  if ($current) {
+    Write-Host "[OK] ngrok ya esta activo: $current" -ForegroundColor Green
+    return $current
+  }
+
+  if (!(Test-Path $NgrokExe)) {
+    Write-Host "[ERROR] No encontre ngrok en: $NgrokExe" -ForegroundColor Red
+    return ''
+  }
+
+  Write-Host '[...] Iniciando ngrok para n8n:5678...' -ForegroundColor Yellow
+  $dir = Split-Path -Parent $NgrokExe
+  Open-PowerShellWindow 'NGROK - N8N 5678' "Set-Location '$dir'; .\ngrok.exe http 5678" | Out-Null
+
+  for ($i = 0; $i -lt 45; $i++) {
+    Start-Sleep -Seconds 1
+    $current = Get-NgrokUrl
+    if ($current) {
+      Write-Host "[OK] ngrok listo: $current" -ForegroundColor Green
+      return $current
+    }
+  }
+
+  Write-Host '[ERROR] No pude detectar la URL publica de ngrok.' -ForegroundColor Red
+  return ''
+}
+
+function Ensure-PocketBase {
+  if (Test-Port $PocketBasePort) {
+    Write-Host '[OK] PocketBase ya esta activo en 8091.' -ForegroundColor Green
+    return $true
+  }
+
+  $exe = Join-Path $PocketBaseDir 'pocketbase.exe'
+  if (!(Test-Path $exe)) {
+    Write-Host "[ERROR] No encontre PocketBase en: $exe" -ForegroundColor Red
+    return $false
+  }
+
+  Write-Host '[...] Iniciando PocketBase en 8091...' -ForegroundColor Yellow
+  Open-PowerShellWindow 'POCKETBASE - SCRAPER 8091' "Set-Location '$PocketBaseDir'; .\pocketbase.exe serve --http=127.0.0.1:8091" | Out-Null
+
+  if (Wait-Port $PocketBasePort 35) {
+    Write-Host '[OK] PocketBase listo.' -ForegroundColor Green
+    return $true
+  }
+
+  Write-Host '[ERROR] PocketBase no abrio el puerto 8091.' -ForegroundColor Red
+  return $false
+}
+
+function Stop-ReactProcess {
+  $connections = Get-NetTCPConnection -State Listen -LocalPort $ReactPort -ErrorAction SilentlyContinue
+  $pids = $connections | Select-Object -ExpandProperty OwningProcess -Unique
+  foreach ($pidValue in $pids) {
+    if ($pidValue -and $pidValue -ne $PID) {
+      taskkill /PID $pidValue /T /F *> $null
+    }
+  }
+  Start-Sleep -Seconds 2
+}
+
+function Start-React {
+  if (!(Test-Path (Join-Path $ReactDir 'package.json'))) {
+    Write-Host "[ERROR] No encontre package.json en: $ReactDir" -ForegroundColor Red
+    return $false
+  }
+
+  if (Test-Port $ReactPort) {
+    Write-Host '[OK] React ya esta activo en 5173.' -ForegroundColor Green
+    return $true
+  }
+
+  Write-Host '[...] Iniciando React en 5173...' -ForegroundColor Yellow
+  $proc = Open-PowerShellWindow 'REACT - SCRAPER 5173' "Set-Location '$ReactDir'; npm run dev -- --host 0.0.0.0 --port 5173"
+  Set-Content -Path $ReactPidFile -Value $proc.Id -Encoding ASCII
+
+  if (Wait-Port $ReactPort 50) {
+    Write-Host '[OK] React listo.' -ForegroundColor Green
+    return $true
+  }
+
+  Write-Host '[ERROR] React no abrio el puerto 5173.' -ForegroundColor Red
+  return $false
+}
+
+function Restart-React {
+  Write-Host '[...] Reiniciando React para que Vite lea las URLs nuevas...' -ForegroundColor Yellow
+  Stop-ReactProcess
+  return Start-React
+}
+
+function New-CloudflareHelper {
+  $helper = @'
+param(
+  [Parameter(Mandatory=$true)][string]$Name,
+  [Parameter(Mandatory=$true)][int]$Port,
+  [Parameter(Mandatory=$true)][string]$CloudflaredExe,
+  [Parameter(Mandatory=$true)][string]$UrlFile
+)
+$Host.UI.RawUI.WindowTitle = "CLOUDFLARE - $Name"
+Clear-Host
+Write-Host '========================================' -ForegroundColor Cyan
+Write-Host " CLOUDFLARE $Name" -ForegroundColor Cyan
+Write-Host '========================================' -ForegroundColor Cyan
+Write-Host "Servicio local: http://localhost:$Port" -ForegroundColor Yellow
+Write-Host ''
+if (!(Test-Path $CloudflaredExe)) {
+  Write-Host "No encontre cloudflared.exe en: $CloudflaredExe" -ForegroundColor Red
+  Pause
+  exit 1
+}
+& $CloudflaredExe tunnel --url "http://localhost:$Port" 2>&1 | ForEach-Object {
+  $line = $_.ToString()
+  Write-Host $line
+  $match = [regex]::Match($line, 'https://[a-zA-Z0-9-]+\.trycloudflare\.com')
+  if ($match.Success) {
+    [System.IO.File]::WriteAllText($UrlFile, $match.Value, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Host ''
+    Write-Host "URL PUBLICA: $($match.Value)" -ForegroundColor Green
+    Write-Host ''
+  }
+}
+'@
+  [System.IO.File]::WriteAllText($CfHelperFile, $helper, (New-Object System.Text.UTF8Encoding($false)))
+}
+
+function Get-ProcessCommandLines {
+  try {
+    return Get-CimInstance Win32_Process -Filter "Name='cloudflared.exe'" -ErrorAction Stop | Select-Object ProcessId, CommandLine
+  } catch {
+    return @()
+  }
+}
+
+function Test-CloudflareForPort([int]$Port) {
+  $needle1 = "localhost:$Port"
+  $needle2 = "127.0.0.1:$Port"
+  return [bool](Get-ProcessCommandLines | Where-Object { $_.CommandLine -like "*$needle1*" -or $_.CommandLine -like "*$needle2*" } | Select-Object -First 1)
+}
+
+function Read-TextFile([string]$Path) {
+  if (Test-Path $Path) { return (Get-Content -LiteralPath $Path -Raw -ErrorAction SilentlyContinue).Trim() }
+  return ''
+}
+
+function Test-PublicUrl([string]$Url) {
+  if ([string]::IsNullOrWhiteSpace($Url)) { return $false }
+  try {
+    $response = Invoke-WebRequest -Uri $Url -Method Head -TimeoutSec 6 -MaximumRedirection 2 -UseBasicParsing
+    return ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500)
+  } catch {
+    return $false
+  }
+}
+
+function Ensure-Cloudflare([string]$Name, [int]$Port, [string]$UrlFile, [string]$EnvFallback) {
+  $saved = Read-TextFile $UrlFile
+  if ((Test-CloudflareForPort $Port) -and $saved) {
+    Write-Host "[OK] Cloudflared $Name ya esta activo: $saved" -ForegroundColor Green
+    return $saved
+  }
+
+  if ((Test-CloudflareForPort $Port) -and (Test-PublicUrl $EnvFallback)) {
+    Write-Host "[OK] Cloudflared $Name ya esta activo: $EnvFallback" -ForegroundColor Green
+    return $EnvFallback
+  }
+
+  if (!(Test-Path $CloudflaredExe)) {
+    Write-Host "[ERROR] No encontre cloudflared en: $CloudflaredExe" -ForegroundColor Red
+    return ''
+  }
+
+  Remove-Item $UrlFile -Force -ErrorAction SilentlyContinue
+  New-CloudflareHelper
+  Write-Host "[...] Iniciando Cloudflared para $Name..." -ForegroundColor Yellow
+  Start-Process powershell.exe -ArgumentList '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $CfHelperFile, '-Name', $Name, '-Port', $Port, '-CloudflaredExe', $CloudflaredExe, '-UrlFile', $UrlFile | Out-Null
+
+  for ($i = 0; $i -lt 90; $i++) {
+    Start-Sleep -Seconds 1
+    $saved = Read-TextFile $UrlFile
+    if ($saved) {
+      Write-Host "[OK] Cloudflared $Name listo: $saved" -ForegroundColor Green
+      return $saved
+    }
+  }
+
+  Write-Host "[ERROR] No pude detectar la URL de Cloudflared para $Name." -ForegroundColor Red
+  return ''
+}
+
+function Read-EnvValue([string]$Key) {
+  if (!(Test-Path $EnvFile)) { return '' }
+  foreach ($line in Get-Content -LiteralPath $EnvFile -ErrorAction SilentlyContinue) {
+    if ($line -match "^$([regex]::Escape($Key))=(.*)$") { return $Matches[1].Trim() }
+  }
+  return ''
+}
+
+function Set-EnvValue([string]$Content, [string]$Key, [string]$Value) {
+  $line = "$Key=$Value"
+  if ($Content -match "(?m)^$([regex]::Escape($Key))=") {
+    return ($Content -replace "(?m)^$([regex]::Escape($Key))=.*$", $line)
+  }
+  if ($Content.Length -gt 0 -and !$Content.EndsWith("`n")) { $Content += "`r`n" }
+  return $Content + $line + "`r`n"
+}
+
+function Update-Env([string]$PocketBaseUrl, [string]$N8nUrl) {
+  if (!$PocketBaseUrl -or !$N8nUrl) {
+    Write-Host '[ERROR] Faltan URLs. No modificare el .env.' -ForegroundColor Red
+    return $false
+  }
+
+  if (!(Test-Path $EnvFile)) {
+    Write-Host "[ERROR] No encontre el .env en: $EnvFile" -ForegroundColor Red
+    return $false
+  }
+
+  $content = Get-Content -LiteralPath $EnvFile -Raw -ErrorAction SilentlyContinue
+  $content = Set-EnvValue $content 'VITE_PB_URL' $PocketBaseUrl
+  $content = Set-EnvValue $content 'VITE_N8N_SEND_WEBHOOK' ($N8nUrl.TrimEnd('/') + '/webhook/enviar-lead-manual')
+  $content = Set-EnvValue $content 'VITE_N8N_SCRAPER_WEBHOOK' ($N8nUrl.TrimEnd('/') + '/webhook/iniciar-scraper')
+  if ($content -eq (Get-Content -LiteralPath $EnvFile -Raw)) {
+    Write-Host '[OK] web\.env ya contiene las URLs actuales.' -ForegroundColor Green
+    return $false
+  }
+  [System.IO.File]::WriteAllText($EnvFile, $content, (New-Object System.Text.UTF8Encoding($false)))
+  Write-Host '[OK] web\.env actualizado en UTF-8 sin BOM.' -ForegroundColor Green
+  return $true
+}
+
+function Show-Urls {
+  Write-Title
+  $reactUrl = Read-TextFile $ReactUrlFile
+  if (!$reactUrl) { $reactUrl = '' }
+  $pbUrl = Read-TextFile $PocketBaseUrlFile
+  if (!$pbUrl) { $pbUrl = Read-EnvValue 'VITE_PB_URL' }
+  $n8nUrl = Get-NgrokUrl
+  if (!$n8nUrl) {
+    $sendWebhook = Read-EnvValue 'VITE_N8N_SEND_WEBHOOK'
+    if ($sendWebhook) { $n8nUrl = ($sendWebhook -replace '/webhook/enviar-lead-manual$','') }
+  }
+
+  Write-Host 'URLS PARA PROBAR DESDE EL CELULAR' -ForegroundColor Yellow
+  Write-Host '========================================' -ForegroundColor Yellow
+  Write-Host ''
+  Write-Host 'React / Scraper:' -ForegroundColor Cyan
+  if ($reactUrl) { Write-Host $reactUrl } else { Write-Host 'NO DETECTADA' }
+  Write-Host ''
+  Write-Host 'PocketBase publico:' -ForegroundColor Cyan
+  if ($pbUrl) { Write-Host $pbUrl } else { Write-Host 'NO DETECTADA' }
+  Write-Host ''
+  Write-Host 'n8n publico:' -ForegroundColor Cyan
+  if ($n8nUrl) { Write-Host $n8nUrl } else { Write-Host 'NO DETECTADA' }
+  Write-Host ''
+  Write-Host '========================================' -ForegroundColor DarkGray
+  Write-Host 'React local:      http://localhost:5173'
+  Write-Host 'PocketBase local: http://127.0.0.1:8091/_/'
+  Write-Host 'n8n local:        http://localhost:5678'
+  Write-Host "WAHA local:       http://localhost:$WahaPort"
+  Write-Host ''
+}
+
+function Show-Status {
+  Write-Title
+  $docker = Test-DockerReady
+  $n8nState = Get-ContainerState $N8nContainer
+  $wahaState = Get-ContainerState $WahaContainer
+  $ngrokUrl = Get-NgrokUrl
+  $reactCf = Test-CloudflareForPort $ReactPort
+  $pbCf = Test-CloudflareForPort $PocketBasePort
+
+  function Status-Line([string]$Name, [bool]$Ok, [string]$Detail = '') {
+    $text = if ($Ok) { 'ACTIVO' } else { 'APAGADO' }
+    $color = if ($Ok) { 'Green' } else { 'Red' }
+    Write-Host ($Name.PadRight(24) + $text) -ForegroundColor $color
+    if ($Detail) { Write-Host (' '.PadRight(24) + $Detail) -ForegroundColor DarkGray }
+  }
+
+  Status-Line 'Docker Desktop:' $docker
+  Status-Line 'n8n:' ($n8nState -eq 'running') $n8nState
+  Status-Line 'WAHA:' ($wahaState -eq 'running') $wahaState
+  Status-Line 'PocketBase 8091:' (Test-Port $PocketBasePort)
+  Status-Line 'React 5173:' (Test-Port $ReactPort)
+  Status-Line 'ngrok:' ([bool]$ngrokUrl) $ngrokUrl
+  Status-Line 'Cloudflare React:' $reactCf (Read-TextFile $ReactUrlFile)
+  Status-Line 'Cloudflare PB:' $pbCf (Read-TextFile $PocketBaseUrlFile)
+  Write-Host ''
+}
+
+function Start-All {
+  Write-Title
+  Write-Host 'Levantando y verificando todos los servicios...' -ForegroundColor Yellow
+  Write-Host ''
+
+  if (!(Ensure-Docker)) { return }
+  Ensure-Container $N8nContainer 'n8n' | Out-Null
+  $wahaOk = Ensure-Container $WahaContainer 'WAHA'
+  if (!$wahaOk) { Write-Host '[ERROR] WAHA no esta activo.' -ForegroundColor Red; return $false }
+  $n8nUrl = Ensure-Ngrok
+
+  $pbOk = Ensure-PocketBase
+  $reactOk = Start-React
+
+  if (!$pbOk -or !$reactOk) {
+    Write-Host '[ERROR] No continuare con los tuneles hasta que PocketBase y React esten activos.' -ForegroundColor Red
+    return $false
+  }
+
+  $oldReact = ''
+  $oldPb = Read-EnvValue 'VITE_PB_URL'
+  $reactUrl = Ensure-Cloudflare 'REACT' $ReactPort $ReactUrlFile $oldReact
+  $pbUrl = Ensure-Cloudflare 'POCKETBASE' $PocketBasePort $PocketBaseUrlFile $oldPb
+
+  if (Update-Env $pbUrl $n8nUrl) {
+    Restart-React | Out-Null
+  }
+
+  Write-Host ''
+  Write-Host '========================================' -ForegroundColor Green
+  Write-Host 'PROYECTO LISTO' -ForegroundColor Green
+  Write-Host '========================================' -ForegroundColor Green
+  Write-Host ''
+  Write-Host 'React local:' -ForegroundColor Cyan
+  Write-Host 'http://localhost:5173'
+  Write-Host ''
+  Write-Host 'React celular:' -ForegroundColor Cyan
+  Write-Host $reactUrl
+  Write-Host ''
+  Write-Host 'PocketBase local:' -ForegroundColor Cyan
+  Write-Host 'http://127.0.0.1:8091/_/'
+  Write-Host ''
+  Write-Host 'PocketBase publico:' -ForegroundColor Cyan
+  Write-Host $pbUrl
+  Write-Host ''
+  Write-Host 'n8n local:' -ForegroundColor Cyan
+  Write-Host 'http://localhost:5678'
+  Write-Host ''
+  Write-Host 'n8n publico:' -ForegroundColor Cyan
+  Write-Host $n8nUrl
+  Write-Host ''
+  Write-Host 'WAHA:' -ForegroundColor Cyan
+  Write-Host "http://localhost:$WahaPort"
+  Write-Host ''
+  Write-Host 'Usa la URL de React celular para abrir la web desde el telefono.' -ForegroundColor Yellow
+  Write-Host ''
+  return $true
+}
+
+if ($args.Count -gt 0) {
+  switch ($args[0]) {
+    '--status' { Show-Status; exit 0 }
+    '--start' { if (Start-All) { exit 0 } else { exit 1 } }
+    default { Write-Host 'Uso: --status o --start'; exit 2 }
+  }
+}
+
+while ($true) {
+  Write-Title
+  Write-Host '1. Levantar proyecto'
+  Write-Host '2. Ver estado'
+  Write-Host '3. Ver URLs para celular'
+  Write-Host ''
+  $option = Read-Host 'Elige una opcion'
+
+  switch ($option) {
+    '1' { Start-All | Out-Null; Pause }
+    '2' { Show-Status; Pause }
+    '3' { Show-Urls; Pause }
+    default {
+      Write-Host 'Opcion no valida.' -ForegroundColor Red
+      Start-Sleep -Seconds 1
+    }
+  }
+}

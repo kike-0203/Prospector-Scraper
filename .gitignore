@@ -1,0 +1,11 @@
+.env
+*.local.env
+launcher.local.ps1
+web/.env
+web/node_modules/
+web/dist/
+web/src/debug-env.js
+*.log
+sessions/
+**/.sessions/
+pb_data/
