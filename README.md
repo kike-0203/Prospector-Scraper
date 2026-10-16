@@ -24,7 +24,10 @@
 3. Para una instalación nueva de WAHA, copia `.env.example` a `.env`, configura las credenciales privadas y las rutas absolutas de sesiones y videos. Después ejecuta `docker compose -p waha-test -f docker-compose.waha.yml up -d waha`. Las sesiones se guardan en `WAHA_SESSIONS_DIR`.
 4. Ejecuta `ABRIR_PROSPECTOR_SCRAPER.bat`. También admite `--start` y `--status` para usarlo sin menú. WAHA se publica en `http://localhost:3001` porque el puerto 3000 está ocupado por Gotenberg en la instalación actual.
 
-En la instalación existente, el Compose de WAHA está fuera de este repositorio y conserva su propio `.env` y directorio de sesiones. El launcher reutiliza el contenedor `waha-test-waha-1`. Los workflows n8n exportados en `n8n/` usan el puerto 3001 y leen la clave WAHA desde `$env.WAHA_API_KEY`. Si ya están importados en n8n, actualiza las URLs de WAHA y las credenciales de esas copias activas antes de ejecutarlos. Configura `WAHA_API_KEY` en el entorno local de n8n; nunca la pongas en `web/.env`.
+En la instalación existente, el Compose de WAHA está fuera de este repositorio y conserva su propio `.env` y directorio de sesiones. El launcher reutiliza el contenedor `waha-test-waha-1`. Desde el contenedor n8n, WAHA se alcanza en `http://host.docker.internal:3001`; el puerto 3000 corresponde a Gotenberg.
+
+La instancia local de n8n guarda la clave WAHA en una credencial cifrada de tipo **Header Auth** con la cabecera `X-Api-Key`. Las copias publicadas de los workflows se actualizaron junto con la rotación de la clave. Los JSON de `n8n/` son exportaciones portables: usan `$env.WAHA_API_KEY` y requieren configurar esa variable en una nueva instancia o sustituirla por una credencial Header Auth propia. Nunca pongas esta clave en `web/.env` ni en un archivo versionado.
+
 
 ## Vista general de workflows
 
