@@ -28,7 +28,6 @@ $ReactDir        = Join-Path $ProjectRoot 'web'
 $PocketBaseDir   = ''
 $EnvFile         = Join-Path $ReactDir '.env'
 $CloudflaredExe  = ''
-$NgrokExe        = ''
 $DockerDesktop   = 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
 
 $ReactPort       = 5173
@@ -138,45 +137,7 @@ function Ensure-Container([string]$Name, [string]$Label) {
 function Open-PowerShellWindow([string]$Title, [string]$Command) {
   $safeTitle = $Title.Replace("'", "''")
   $full = "`$Host.UI.RawUI.WindowTitle='$safeTitle'; `$ErrorActionPreference='Continue'; $Command"
-  return Start-Process powershell.exe -PassThru -ArgumentList '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $full
-}
-
-function Get-NgrokUrl {
-  try {
-    $data = Invoke-RestMethod -Uri 'http://127.0.0.1:4040/api/tunnels' -TimeoutSec 3
-    return (($data.tunnels | Where-Object { $_.proto -eq 'https' } | Select-Object -First 1).public_url)
-  } catch {
-    return ''
-  }
-}
-
-function Ensure-Ngrok {
-  $current = Get-NgrokUrl
-  if ($current) {
-    Write-Host "[OK] ngrok ya esta activo: $current" -ForegroundColor Green
-    return $current
-  }
-
-  if (!(Test-Path $NgrokExe)) {
-    Write-Host "[ERROR] No encontre ngrok en: $NgrokExe" -ForegroundColor Red
-    return ''
-  }
-
-  Write-Host '[...] Iniciando ngrok para n8n:5678...' -ForegroundColor Yellow
-  $dir = Split-Path -Parent $NgrokExe
-  Open-PowerShellWindow 'NGROK - N8N 5678' "Set-Location '$dir'; .\ngrok.exe http 5678" | Out-Null
-
-  for ($i = 0; $i -lt 45; $i++) {
-    Start-Sleep -Seconds 1
-    $current = Get-NgrokUrl
-    if ($current) {
-      Write-Host "[OK] ngrok listo: $current" -ForegroundColor Green
-      return $current
-    }
-  }
-
-  Write-Host '[ERROR] No pude detectar la URL publica de ngrok.' -ForegroundColor Red
-  return ''
+  return Start-Process powershell.exe -PassThru -WindowStyle Hidden -ArgumentList '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $full
 }
 
 function Ensure-PocketBase {
@@ -261,7 +222,6 @@ Write-Host "Servicio local: http://localhost:$Port" -ForegroundColor Yellow
 Write-Host ''
 if (!(Test-Path $CloudflaredExe)) {
   Write-Host "No encontre cloudflared.exe en: $CloudflaredExe" -ForegroundColor Red
-  Pause
   exit 1
 }
 & $CloudflaredExe tunnel --url "http://localhost:$Port" 2>&1 | ForEach-Object {
@@ -298,11 +258,13 @@ function Read-TextFile([string]$Path) {
   return ''
 }
 
-function Test-PublicUrl([string]$Url) {
+function Test-PublicUrl([string]$Url, [int]$Port) {
   if ([string]::IsNullOrWhiteSpace($Url)) { return $false }
   try {
-    $response = Invoke-WebRequest -Uri $Url -Method Head -TimeoutSec 6 -MaximumRedirection 2 -UseBasicParsing
-    return ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500)
+    $checkUrl = $Url.TrimEnd('/')
+    if ($Port -eq $PocketBasePort) { $checkUrl += '/api/health' }
+    $response = Invoke-WebRequest -Uri $checkUrl -Method Head -TimeoutSec 6 -MaximumRedirection 2 -UseBasicParsing
+    return ($response.StatusCode -eq 200)
   } catch {
     return $false
   }
@@ -310,15 +272,18 @@ function Test-PublicUrl([string]$Url) {
 
 function Ensure-Cloudflare([string]$Name, [int]$Port, [string]$UrlFile, [string]$EnvFallback) {
   $saved = Read-TextFile $UrlFile
-  if ((Test-CloudflareForPort $Port) -and $saved) {
+  $running = Get-ProcessCommandLines | Where-Object { $_.CommandLine -like "*localhost:$Port*" -or $_.CommandLine -like "*127.0.0.1:$Port*" }
+  if ($running -and $saved -and (Test-PublicUrl $saved $Port)) {
     Write-Host "[OK] Cloudflared $Name ya esta activo: $saved" -ForegroundColor Green
     return $saved
   }
 
-  if ((Test-CloudflareForPort $Port) -and (Test-PublicUrl $EnvFallback)) {
+  if ($running -and (Test-PublicUrl $EnvFallback $Port)) {
     Write-Host "[OK] Cloudflared $Name ya esta activo: $EnvFallback" -ForegroundColor Green
     return $EnvFallback
   }
+
+  foreach ($process in $running) { Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue }
 
   if (!(Test-Path $CloudflaredExe)) {
     Write-Host "[ERROR] No encontre cloudflared en: $CloudflaredExe" -ForegroundColor Red
@@ -328,12 +293,12 @@ function Ensure-Cloudflare([string]$Name, [int]$Port, [string]$UrlFile, [string]
   Remove-Item $UrlFile -Force -ErrorAction SilentlyContinue
   New-CloudflareHelper
   Write-Host "[...] Iniciando Cloudflared para $Name..." -ForegroundColor Yellow
-  Start-Process powershell.exe -ArgumentList '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $CfHelperFile, '-Name', $Name, '-Port', $Port, '-CloudflaredExe', $CloudflaredExe, '-UrlFile', $UrlFile | Out-Null
+  Start-Process powershell.exe -WindowStyle Hidden -ArgumentList '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $CfHelperFile, '-Name', $Name, '-Port', $Port, '-CloudflaredExe', $CloudflaredExe, '-UrlFile', $UrlFile | Out-Null
 
   for ($i = 0; $i -lt 90; $i++) {
     Start-Sleep -Seconds 1
     $saved = Read-TextFile $UrlFile
-    if ($saved) {
+    if ($saved -and (Test-PublicUrl $saved $Port)) {
       Write-Host "[OK] Cloudflared $Name listo: $saved" -ForegroundColor Green
       return $saved
     }
@@ -360,8 +325,8 @@ function Set-EnvValue([string]$Content, [string]$Key, [string]$Value) {
   return $Content + $line + "`r`n"
 }
 
-function Update-Env([string]$PocketBaseUrl, [string]$N8nUrl) {
-  if (!$PocketBaseUrl -or !$N8nUrl) {
+function Update-Env([string]$PocketBaseUrl) {
+  if (!$PocketBaseUrl) {
     Write-Host '[ERROR] Faltan URLs. No modificare el .env.' -ForegroundColor Red
     return $false
   }
@@ -373,8 +338,8 @@ function Update-Env([string]$PocketBaseUrl, [string]$N8nUrl) {
 
   $content = Get-Content -LiteralPath $EnvFile -Raw -ErrorAction SilentlyContinue
   $content = Set-EnvValue $content 'VITE_PB_URL' $PocketBaseUrl
-  $content = Set-EnvValue $content 'VITE_N8N_SEND_WEBHOOK' ($N8nUrl.TrimEnd('/') + '/webhook/enviar-lead-manual')
-  $content = Set-EnvValue $content 'VITE_N8N_SCRAPER_WEBHOOK' ($N8nUrl.TrimEnd('/') + '/webhook/iniciar-scraper')
+  $content = Set-EnvValue $content 'VITE_N8N_SEND_WEBHOOK' '/webhook/enviar-lead-manual'
+  $content = Set-EnvValue $content 'VITE_N8N_SCRAPER_WEBHOOK' '/webhook/iniciar-scraper'
   if ($content -eq (Get-Content -LiteralPath $EnvFile -Raw)) {
     Write-Host '[OK] web\.env ya contiene las URLs actuales.' -ForegroundColor Green
     return $false
@@ -390,11 +355,6 @@ function Show-Urls {
   if (!$reactUrl) { $reactUrl = '' }
   $pbUrl = Read-TextFile $PocketBaseUrlFile
   if (!$pbUrl) { $pbUrl = Read-EnvValue 'VITE_PB_URL' }
-  $n8nUrl = Get-NgrokUrl
-  if (!$n8nUrl) {
-    $sendWebhook = Read-EnvValue 'VITE_N8N_SEND_WEBHOOK'
-    if ($sendWebhook) { $n8nUrl = ($sendWebhook -replace '/webhook/enviar-lead-manual$','') }
-  }
 
   Write-Host 'URLS PARA PROBAR DESDE EL CELULAR' -ForegroundColor Yellow
   Write-Host '========================================' -ForegroundColor Yellow
@@ -405,8 +365,7 @@ function Show-Urls {
   Write-Host 'PocketBase publico:' -ForegroundColor Cyan
   if ($pbUrl) { Write-Host $pbUrl } else { Write-Host 'NO DETECTADA' }
   Write-Host ''
-  Write-Host 'n8n publico:' -ForegroundColor Cyan
-  if ($n8nUrl) { Write-Host $n8nUrl } else { Write-Host 'NO DETECTADA' }
+  Write-Host 'Webhooks de n8n: dentro de la URL de React, sin editor publico.' -ForegroundColor Cyan
   Write-Host ''
   Write-Host '========================================' -ForegroundColor DarkGray
   Write-Host 'React local:      http://localhost:5173'
@@ -421,7 +380,6 @@ function Show-Status {
   $docker = Test-DockerReady
   $n8nState = Get-ContainerState $N8nContainer
   $wahaState = Get-ContainerState $WahaContainer
-  $ngrokUrl = Get-NgrokUrl
   $reactCf = Test-CloudflareForPort $ReactPort
   $pbCf = Test-CloudflareForPort $PocketBasePort
 
@@ -437,7 +395,6 @@ function Show-Status {
   Status-Line 'WAHA:' ($wahaState -eq 'running') $wahaState
   Status-Line 'PocketBase 8091:' (Test-Port $PocketBasePort)
   Status-Line 'React 5173:' (Test-Port $ReactPort)
-  Status-Line 'ngrok:' ([bool]$ngrokUrl) $ngrokUrl
   Status-Line 'Cloudflare React:' $reactCf (Read-TextFile $ReactUrlFile)
   Status-Line 'Cloudflare PB:' $pbCf (Read-TextFile $PocketBaseUrlFile)
   Write-Host ''
@@ -449,10 +406,10 @@ function Start-All {
   Write-Host ''
 
   if (!(Ensure-Docker)) { return }
-  Ensure-Container $N8nContainer 'n8n' | Out-Null
+  $n8nOk = Ensure-Container $N8nContainer 'n8n'
+  if (!$n8nOk) { Write-Host '[ERROR] n8n no esta activo.' -ForegroundColor Red; return $false }
   $wahaOk = Ensure-Container $WahaContainer 'WAHA'
   if (!$wahaOk) { Write-Host '[ERROR] WAHA no esta activo.' -ForegroundColor Red; return $false }
-  $n8nUrl = Ensure-Ngrok
 
   $pbOk = Ensure-PocketBase
   $reactOk = Start-React
@@ -466,8 +423,12 @@ function Start-All {
   $oldPb = Read-EnvValue 'VITE_PB_URL'
   $reactUrl = Ensure-Cloudflare 'REACT' $ReactPort $ReactUrlFile $oldReact
   $pbUrl = Ensure-Cloudflare 'POCKETBASE' $PocketBasePort $PocketBaseUrlFile $oldPb
+  if (!$reactUrl -or !$pbUrl) {
+    Write-Host '[ERROR] No se pudo verificar uno de los tuneles publicos.' -ForegroundColor Red
+    return $false
+  }
 
-  if (Update-Env $pbUrl $n8nUrl) {
+  if (Update-Env $pbUrl) {
     Restart-React | Out-Null
   }
 
@@ -491,8 +452,7 @@ function Start-All {
   Write-Host 'n8n local:' -ForegroundColor Cyan
   Write-Host 'http://localhost:5678'
   Write-Host ''
-  Write-Host 'n8n publico:' -ForegroundColor Cyan
-  Write-Host $n8nUrl
+  Write-Host 'Webhooks de n8n: dentro de la URL de React, sin editor publico.' -ForegroundColor Cyan
   Write-Host ''
   Write-Host 'WAHA:' -ForegroundColor Cyan
   Write-Host "http://localhost:$WahaPort"

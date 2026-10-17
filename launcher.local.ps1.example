@@ -1,6 +1,5 @@
 # Copy to launcher.local.ps1 and set paths for this computer.
 $PocketBaseDir = ''
 $CloudflaredExe = ''
-$NgrokExe = ''
 $WahaContainer = 'waha-test-waha-1'
 $WahaPort = 3001

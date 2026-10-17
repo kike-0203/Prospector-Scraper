@@ -19,10 +19,12 @@
 
 ## Arranque local en Windows
 
-1. Copia `launcher.local.ps1.example` a `launcher.local.ps1` y configura las rutas de PocketBase, cloudflared y ngrok para tu equipo.
+1. Copia `launcher.local.ps1.example` a `launcher.local.ps1` y configura las rutas de PocketBase y cloudflared para tu equipo.
 2. Copia `web/.env.example` a `web/.env` y configura solo URLs públicas. Las variables `VITE_*` se incluyen en el navegador; nunca pongas claves o contraseñas allí.
 3. Para una instalación nueva de WAHA, copia `.env.example` a `.env`, configura las credenciales privadas y las rutas absolutas de sesiones y videos. Después ejecuta `docker compose -p waha-test -f docker-compose.waha.yml up -d waha`. Las sesiones se guardan en `WAHA_SESSIONS_DIR`.
 4. Ejecuta `ABRIR_PROSPECTOR_SCRAPER.bat`. También admite `--start` y `--status` para usarlo sin menú. WAHA se publica en `http://localhost:3001` porque el puerto 3000 está ocupado por Gotenberg en la instalación actual.
+
+Para abrir la aplicación en el celular, usa la URL **React celular** que imprime la opción **1. Iniciar todo** del `.bat`, o consulta la opción **3. Ver URLs para celular**. El frontend llama a los dos webhooks necesarios de n8n por esa misma URL; el editor de n8n y el dashboard de WAHA permanecen locales. PocketBase usa su propio túnel HTTPS. Los túneles rápidos de Cloudflare pueden recibir URLs nuevas al reiniciarse: consulta de nuevo la opción 3 después de cada arranque.
 
 En la instalación existente, el Compose de WAHA está fuera de este repositorio y conserva su propio `.env` y directorio de sesiones. El launcher reutiliza el contenedor `waha-test-waha-1`. Desde el contenedor n8n, WAHA se alcanza en `http://host.docker.internal:3001`; el puerto 3000 corresponde a Gotenberg.
 
