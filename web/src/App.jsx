@@ -513,6 +513,7 @@ function App() {
         >
           <option>Tamales</option>
           <option>Talleres Mecánicos</option>
+          <option>Talleres de motos</option>
           <option>Dentistas</option>
           <option>Tacos</option>
           <option>Pozolerias</option>

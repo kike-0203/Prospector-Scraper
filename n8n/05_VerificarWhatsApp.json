@@ -21,7 +21,7 @@
             },
             {
               "name": "filter",
-              "value": "mensaje_generado=true && whatsapp_verificado=false"
+              "value": "=campana_id=\"{{ $('Webhook').first().json.body.campana_id }}\" && mensaje_generado=true && whatsapp_verificado=false"
             }
           ]
         },

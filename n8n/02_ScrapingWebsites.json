@@ -35,7 +35,7 @@
             },
             {
               "name": "filter",
-              "value": "website != \"\" && tiene_web = true"
+              "value": "=campana_id=\"{{ $('Webhook').first().json.body.campana_id }}\" && website != \"\" && tiene_web = true"
             }
           ]
         },
@@ -672,7 +672,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://erupt-theater-sectional.ngrok-free.dev/webhook/diagnosticar-leads",
+        "url": "http://127.0.0.1:5678/webhook/diagnosticar-leads",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -1035,6 +1035,17 @@
         [
           {
             "node": "PB_LeerLeadsConWeb",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_SinLeadsConWeb": {
+      "main": [
+        [
+          {
+            "node": "CODE_Disparar_03_UnaVez",
             "type": "main",
             "index": 0
           }

@@ -70,7 +70,7 @@
           "parameters": [
             {
               "name": "X-Goog-Api-Key",
-              "value": "AIzaSyAXQoIRp0TJKKh-k3WhJiSlckSDGnnYjPM"
+              "value": "={{ $env.GOOGLE_PLACES_API_KEY }}"
             },
             {
               "name": "X-Goog-FieldMask",
@@ -94,7 +94,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const places = $json.places || [];\n\nreturn places.map(place => {\n  const nombre = place.displayName?.text || \"\";\n  const telefono = place.nationalPhoneNumber || \"\";\n  const direccion = place.formattedAddress || \"\";\n  const website = place.websiteUri || \"\";\n\n  const rating = place.rating || 0;\n  const reviews = place.userRatingCount || 0;\n\n  const tipos = place.types || [];\n\n  let telefono_limpio = telefono.replace(/\\D/g, \"\");\n\n  if (telefono_limpio.length === 10) {\n    telefono_limpio = \"52\" + telefono_limpio;\n  }\n\n  const wa_link = telefono_limpio\n    ? `https://wa.me/${telefono_limpio}`\n    : \"\";\n\n  return {\n    json: {\n      nombre,\n      telefono,\n      direccion,\n      telefono_limpio,\n      wa_link,\n      website,\n      rating,\n      reviews,\n      tipos: tipos.join(\",\"),\n\n      // BOOLEANOS REALES\n      tiene_web: !!website,\n      tiene_whatsapp: false,\n      tiene_email: false,\n      tiene_facebook: false,\n      tiene_instagram: false,\n      tiene_bot: false,\n\n      // CAMPOS PARA FLUJOS FUTUROS\n      facebook: \"\",\n      instagram: \"\",\n      whatsapp_web: \"\",\n      bot_detectado: \"\",\n      tipo_url: \"\",\n      scraping_web_estado: \"pendiente\"\n    }\n  };\n});"
+        "jsCode": "const places = $json.places || [];\n\nconst seenPhones = new Set();\n\nreturn places.map(place => {\n  const nombre = place.displayName?.text || \"\";\n  const telefono = place.nationalPhoneNumber || \"\";\n  const direccion = place.formattedAddress || \"\";\n  const website = place.websiteUri || \"\";\n\n  const rating = place.rating || 0;\n  const reviews = place.userRatingCount || 0;\n\n  const tipos = place.types || [];\n\n  let telefono_limpio = telefono.replace(/\\D/g, \"\");\n\n  if (telefono_limpio.length === 10) {\n    telefono_limpio = \"52\" + telefono_limpio;\n  }\n\n  const wa_link = telefono_limpio\n    ? `https://wa.me/${telefono_limpio}`\n    : \"\";\n\n  return {\n    json: {\n      nombre,\n      telefono,\n      direccion,\n      telefono_limpio,\n      wa_link,\n      website,\n      rating,\n      reviews,\n      tipos: tipos.join(\",\"),\n\n      // BOOLEANOS REALES\n      tiene_web: !!website,\n      tiene_whatsapp: false,\n      tiene_email: false,\n      tiene_facebook: false,\n      tiene_instagram: false,\n      tiene_bot: false,\n\n      // CAMPOS PARA FLUJOS FUTUROS\n      facebook: \"\",\n      instagram: \"\",\n      whatsapp_web: \"\",\n      bot_detectado: \"\",\n      tipo_url: \"\",\n      scraping_web_estado: \"pendiente\"\n    }\n  };\n}).filter(item => {\n  const phone = item.json.telefono_limpio;\n  if (!phone) return true;\n  if (seenPhones.has(phone)) return false;\n  seenPhones.add(phone);\n  return true;\n});\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -790,7 +790,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://erupt-theater-sectional.ngrok-free.dev/webhook/scraping-websites",
+        "url": "http://127.0.0.1:5678/webhook/scraping-websites",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [

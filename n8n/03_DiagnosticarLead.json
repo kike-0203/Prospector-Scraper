@@ -21,7 +21,7 @@
             },
             {
               "name": "filter",
-              "value": "estado=\"nuevo\" && nivel_oportunidad=\"\""
+              "value": "=campana_id=\"{{ $('Webhook_03_DiagnosticarLead').first().json.body.campana_id }}\" && estado=\"nuevo\" && nivel_oportunidad=\"\""
             }
           ]
         },
@@ -157,7 +157,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://erupt-theater-sectional.ngrok-free.dev/webhook/generar-mensajes",
+        "url": "http://127.0.0.1:5678/webhook/generar-mensajes",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -401,6 +401,17 @@
         [
           {
             "node": "PB_LeerLeadsParaDiagnostico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_SinLeadsParaDiagnostico": {
+      "main": [
+        [
+          {
+            "node": "CODE_Disparar_04_UnaVez",
             "type": "main",
             "index": 0
           }

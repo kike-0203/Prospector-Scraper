@@ -30,6 +30,8 @@ En la instalación existente, el Compose de WAHA está fuera de este repositorio
 
 La sesión de WhatsApp de este proyecto se llama `prospector-scraper`. La instancia local de n8n guarda la clave WAHA en una credencial cifrada de tipo **Header Auth** con la cabecera `X-Api-Key`. Las copias publicadas de los workflows se actualizaron junto con la rotación de la clave. Los JSON de `n8n/` son exportaciones portables: usan `$env.WAHA_API_KEY` y requieren configurar esa variable en una nueva instancia o sustituirla por una credencial Header Auth propia. Nunca pongas esta clave en `web/.env` ni en un archivo versionado.
 
+Los workflows de preparación `01` a `05` se llaman entre sí por `http://127.0.0.1:5678` dentro del contenedor n8n y limitan las consultas de leads al `campana_id` recibido. El workflow `01` elimina teléfonos repetidos dentro de cada lote de Google Places. Su JSON portable usa `$env.GOOGLE_PLACES_API_KEY`; configura esa variable en una instalación nueva sin incluir la clave en el repositorio.
+
 
 ## Prueba manual de un solo mensaje
 
