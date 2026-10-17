@@ -74,7 +74,7 @@
             },
             {
               "name": "session",
-              "value": "default"
+              "value": "prospector-scraper"
             }
           ]
         },

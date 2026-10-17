@@ -26,14 +26,14 @@
 
 En la instalación existente, el Compose de WAHA está fuera de este repositorio y conserva su propio `.env` y directorio de sesiones. El launcher reutiliza el contenedor `waha-test-waha-1`. Desde el contenedor n8n, WAHA se alcanza en `http://host.docker.internal:3001`; el puerto 3000 corresponde a Gotenberg.
 
-La instancia local de n8n guarda la clave WAHA en una credencial cifrada de tipo **Header Auth** con la cabecera `X-Api-Key`. Las copias publicadas de los workflows se actualizaron junto con la rotación de la clave. Los JSON de `n8n/` son exportaciones portables: usan `$env.WAHA_API_KEY` y requieren configurar esa variable en una nueva instancia o sustituirla por una credencial Header Auth propia. Nunca pongas esta clave en `web/.env` ni en un archivo versionado.
+La sesión de WhatsApp de este proyecto se llama `prospector-scraper`. La instancia local de n8n guarda la clave WAHA en una credencial cifrada de tipo **Header Auth** con la cabecera `X-Api-Key`. Las copias publicadas de los workflows se actualizaron junto con la rotación de la clave. Los JSON de `n8n/` son exportaciones portables: usan `$env.WAHA_API_KEY` y requieren configurar esa variable en una nueva instancia o sustituirla por una credencial Header Auth propia. Nunca pongas esta clave en `web/.env` ni en un archivo versionado.
 
 
 ## Prueba manual de un solo mensaje
 
 En la instancia local de n8n existe el workflow inactivo `07_PruebaUnMensaje_WAHA`. No modifica leads ni campañas. El JSON de `n8n/` es una plantilla sin ID de credencial; tras importarlo en otra instancia, asigna una credencial Header Auth con la cabecera `X-Api-Key` a sus dos nodos HTTP.
 
-1. Vincula la sesión `default` en WAHA y comprueba que su estado sea `WORKING`.
+1. Vincula la sesión `prospector-scraper` en WAHA y comprueba que su estado sea `WORKING`.
 2. Abre `07_PruebaUnMensaje_WAHA` en n8n y edita `DatosPrueba`: sustituye `PON_AQUI_TU_NUMERO` por tu número de WhatsApp y revisa el texto de prueba.
 3. Pulsa **Execute workflow** una sola vez. El flujo valida la sesión antes de llamar una vez a `/api/sendText`. Revisa el resultado del nodo `Enviar un solo mensaje` y la recepción en tu teléfono.
 

@@ -15,7 +15,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const numero = 'PON_AQUI_TU_NUMERO';\nconst mensaje = 'Prueba de Prospector-Scraper';\n\nconst digitos = numero.replace(/\\D/g, '');\nif (!/^\\d{10,15}$/.test(digitos)) throw new Error('Escribe tu numero de WhatsApp con codigo de pais o 10 digitos de Mexico');\nif (!mensaje.trim()) throw new Error('Escribe un mensaje de prueba');\nconst telefono = digitos.length === 10 ? `521${digitos}` : (digitos.startsWith('52') && digitos.length === 12 ? `521${digitos.slice(2)}` : digitos);\nreturn [{ json: { session: 'default', chatId: `${telefono}@c.us`, text: mensaje } }];"
+        "jsCode": "const numero = 'PON_AQUI_TU_NUMERO';\nconst mensaje = 'Prueba de Prospector-Scraper';\n\nconst digitos = numero.replace(/\\D/g, '');\nif (!/^\\d{10,15}$/.test(digitos)) throw new Error('Escribe tu numero de WhatsApp con codigo de pais o 10 digitos de Mexico');\nif (!mensaje.trim()) throw new Error('Escribe un mensaje de prueba');\nconst telefono = digitos.length === 10 ? `521${digitos}` : (digitos.startsWith('52') && digitos.length === 12 ? `521${digitos.slice(2)}` : digitos);\nreturn [{ json: { session: 'prospector-scraper', chatId: `${telefono}@c.us`, text: mensaje } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -28,7 +28,7 @@
     },
     {
       "parameters": {
-        "url": "http://host.docker.internal:3001/api/sessions/default",
+        "url": "http://host.docker.internal:3001/api/sessions/prospector-scraper",
         "options": {},
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth"
@@ -40,11 +40,11 @@
         300
       ],
       "id": "5a91ce70-c3d1-4eaf-930f-3fafcc77c02a",
-      "name": "Comprobar sesion default"
+      "name": "Comprobar sesion prospector-scraper"
     },
     {
       "parameters": {
-        "jsCode": "const sesion = $input.first().json;\nif (sesion.name !== 'default' || sesion.status !== 'WORKING') throw new Error('La sesion default no esta vinculada y lista en WAHA');\nreturn [{ json: $('DatosPrueba').first().json }];"
+        "jsCode": "const sesion = $input.first().json;\nif (sesion.name !== 'prospector-scraper' || sesion.status !== 'WORKING') throw new Error('La sesion prospector-scraper no esta vinculada y lista en WAHA');\nreturn [{ json: $('DatosPrueba').first().json }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -106,14 +106,14 @@
       "main": [
         [
           {
-            "node": "Comprobar sesion default",
+            "node": "Comprobar sesion prospector-scraper",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Comprobar sesion default": {
+    "Comprobar sesion prospector-scraper": {
       "main": [
         [
           {
