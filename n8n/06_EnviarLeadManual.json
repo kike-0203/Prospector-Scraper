@@ -34,7 +34,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $json.WAHA_URL }}/api/sendText\n",
+        "url": "={{ $json.WAHA_URL }}/api/sendText",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -344,7 +344,7 @@
           "conditions": [
             {
               "id": "d509279b-5711-4901-8046-2cee0b1069b0",
-              "leftValue": "{{ $json.tipo_envio }}",
+              "leftValue": "={{ $json.tipo_envio }}",
               "rightValue": "texto_material",
               "operator": {
                 "type": "string",
@@ -354,7 +354,7 @@
             },
             {
               "id": "40a87b10-3075-4764-af38-55da51b388d7",
-              "leftValue": "{{ $json.tipo }}",
+              "leftValue": "={{ $json.tipo }}",
               "rightValue": "video",
               "operator": {
                 "type": "string",
@@ -364,7 +364,7 @@
             },
             {
               "id": "09d4085c-41ea-4b1f-8dab-c0cd724cabfc",
-              "leftValue": "{{ $json.archivo }}",
+              "leftValue": "={{ $json.archivo }}",
               "rightValue": "",
               "operator": {
                 "type": "string",
@@ -388,17 +388,47 @@
     },
     {
       "parameters": {
-        "amount": 2
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "99422daa-2d9e-5375-bb13-c2f95dd96750",
+              "leftValue": "={{ $json.tipo_envio }}",
+              "rightValue": "texto_material",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "8a555196-4bed-567d-a52c-fe6fbc679b4e",
+              "leftValue": "={{ $json.material_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
       "position": [
-        1264,
-        -16
+        -80,
+        -80
       ],
-      "id": "57e992f8-0e77-4134-8a83-b70e290e356a",
-      "name": "Wait_2s",
-      "webhookId": "78252e05-50f3-4510-bc61-36bda197e738"
+      "id": "c676c84b-279f-5488-879b-a415425de5eb",
+      "name": "IF_TieneMaterial"
     }
   ],
   "pinData": {},
@@ -435,11 +465,6 @@
         [
           {
             "node": "CODE_RevisarRespuestaWAHA",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Wait_2s",
             "type": "main",
             "index": 0
           }
@@ -516,12 +541,7 @@
       "main": [
         [
           {
-            "node": "PB_LeerMaterial",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Merge_ConMaterial",
+            "node": "IF_TieneMaterial",
             "type": "main",
             "index": 0
           }
@@ -565,7 +585,7 @@
       "main": [
         [
           {
-            "node": "HTTP_WAHA_EnviarMensaje",
+            "node": "HTTP_WAHA_EnviarVideo",
             "type": "main",
             "index": 0
           }
@@ -579,11 +599,23 @@
         ]
       ]
     },
-    "Wait_2s": {
+    "IF_TieneMaterial": {
       "main": [
         [
           {
-            "node": "HTTP_WAHA_EnviarVideo",
+            "node": "PB_LeerMaterial",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge_ConMaterial",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP_WAHA_EnviarMensaje",
             "type": "main",
             "index": 0
           }

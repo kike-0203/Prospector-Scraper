@@ -39,7 +39,9 @@ En la instancia local de n8n existe el workflow inactivo `07_PruebaUnMensaje_WAH
 2. Abre `07_PruebaUnMensaje_WAHA` en n8n y edita `DatosPrueba`: sustituye `PON_AQUI_TU_NUMERO` por tu número de WhatsApp y revisa el texto de prueba.
 3. Pulsa **Execute workflow** una sola vez. El flujo valida la sesión antes de llamar una vez a `/api/sendText`. Revisa el resultado del nodo `Enviar un solo mensaje` y la recepción en tu teléfono.
 
-El webhook `06_EnviarLeadManual` de producción todavía tiene deshabilitado su nodo de envío de texto. No uses el botón **ENVIAR WHATSAPP** de la aplicación como prueba de entrega hasta habilitar y validar ese recorrido. Su comprobación de respuesta ya rechaza resultados vacíos de WAHA para no marcar leads como enviados sin confirmación.
+El workflow publicado `06_EnviarLeadManual` tiene habilitado el envío de texto. Cuando la campaña no tiene material, pasa directamente a `/api/sendText` y no recorre el envío de video. Conserva la normalización de teléfono comprobada con `07_PruebaUnMensaje_WAHA` y exige un identificador de mensaje en la respuesta de WAHA antes de marcar el lead como enviado.
+
+Para probar el botón desde la aplicación en la instancia local preparada, abre **Leads**, pulsa **Cambiar campaña** y selecciona **Prueba manual WhatsApp - numero propio · Solo prueba**. Comprueba que se muestre **Contacto de prueba propio**, **Solo texto** y **Sin material**. Entonces pulsa **ENVIAR WHATSAPP** una sola vez. El contacto de prueba vive en PocketBase, separado de las campañas de prospectos; su número no forma parte de este repositorio.
 
 ## Vista general de workflows
 
