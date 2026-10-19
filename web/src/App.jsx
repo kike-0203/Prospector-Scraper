@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import PocketBase from 'pocketbase'
 import './App.css'
 
@@ -55,6 +55,11 @@ function App() {
   const [scraperLoading, setScraperLoading] = useState(false)
   const [cpsDisponibles, setCpsDisponibles] = useState(0)
   const [ultimaCampana, setUltimaCampana] = useState(null)
+  const campanaSeleccionadaRef = useRef(ultimaCampana)
+  const seleccionarCampana = (campana) => {
+    campanaSeleccionadaRef.current = campana
+    setUltimaCampana(campana)
+  }
   const [materialActivo, setMaterialActivo] = useState(null)
   const [campanas, setCampanas] = useState([])
   const [mostrarCampanas, setMostrarCampanas] = useState(false)
@@ -66,52 +71,103 @@ function App() {
   const [mensajeCampana, setMensajeCampana] = useState('')
 
 
-  const log = (txt) => {
-  setLogs(prev => [`${new Date().toLocaleTimeString()} · ${txt}`, ...prev].slice(0, 8))
+      const log = (txt) => {
+      setLogs(prev => [`${new Date().toLocaleTimeString()} · ${txt}`, ...prev].slice(0, 8))
+      }
+
+      const agruparCampanas = (lista = []) => {
+      const grupos = {}
+
+      lista.forEach((c) => {
+        const key = `${c.nicho || ''}|${c.alcaldia || ''}|${c.ciudad || ''}`
+
+        if (!grupos[key]) {
+          grupos[key] = {
+            ...c,
+            id_grupo: key,
+            ids: [],
+            total_busquedas: 0,
+            busquedas_procesadas: 0,
+            total_leads: 0,
+          }
+        }
+
+        grupos[key].ids.push(c.id)
+        grupos[key].total_busquedas += Number(c.total_busquedas || 0)
+        grupos[key].busquedas_procesadas += Number(c.busquedas_procesadas || 0)
+        grupos[key].total_leads += Number(c.total_leads || 0)
+
+        if (!grupos[key].material_id && c.material_id) {
+          grupos[key].material_id = c.material_id
+          grupos[key].tipo_envio = c.tipo_envio
+        }
+      })
+
+      return Object.values(grupos)
+    }
+
+    const campanasAgrupadas = agruparCampanas(campanas)
+
+    const filtroPorCampana = (campana) => {
+      const ids = campana?.ids?.length ? campana.ids : campana?.id ? [campana.id] : []
+
+      if (ids.length === 0) return ' && campana_id=""'
+
+      return ` && (${ids.map(id => `campana_id="${id}"`).join(' || ')})`
+    }
+
+ const cargarStats = async (campana = ultimaCampana) => {
+  if (!campana) {
+    setStats({ pendientes: 0, enviados: 0, saltados: 0 })
+    return
   }
+  try {
+    const filtroCampana = filtroPorCampana(campana)
 
-  const cargarStats = async (campanaId = ultimaCampana?.id) => {
-    try {
-      const filtroCampana = campanaId ? ` && campana_id="${campanaId}"` : ''
+    const pendientes = await pb.collection('leads').getList(1, 1, {
+      filter: `${filtroPendientes}${filtroCampana}`,
+    })
 
-      const pendientes = await pb.collection('leads').getList(1, 1, {
-        filter: `${filtroPendientes}${filtroCampana}`,
-      })
+    const enviados = await pb.collection('leads').getList(1, 1, {
+      filter: `(estado="enviado_manual" || estado_mensaje="enviado")${filtroCampana}`,
+    })
 
-      const enviados = await pb.collection('leads').getList(1, 1, {
-        filter: `(estado="enviado_manual" || estado_mensaje="enviado")${filtroCampana}`,
-      })
+    const saltados = await pb.collection('leads').getList(1, 1, {
+      filter: `(estado="saltado_manual" || estado_mensaje="saltado")${filtroCampana}`,
+    })
 
-      const saltados = await pb.collection('leads').getList(1, 1, {
-        filter: `(estado="saltado_manual" || estado_mensaje="saltado")${filtroCampana}`,
-      })
-
+    if (campanaSeleccionadaRef.current === campana) {
       setStats({
         pendientes: pendientes.totalItems,
         enviados: enviados.totalItems,
         saltados: saltados.totalItems,
       })
-    } catch (error) {
-      console.error('ERROR STATS:', error)
-      log(`❌ Error cargando contadores: ${error.message}`)
     }
+  } catch (error) {
+    console.error('ERROR STATS:', error)
+    log(`❌ Error cargando contadores: ${error.message}`)
   }
+}
 
- const cargarLead = async () => {
+ const cargarLead = async (campana = ultimaCampana) => {
+  if (!campana) {
+    setLead(null)
+    setMensaje('')
+    return
+  }
   setLoading(true)
   log('🔎 Buscando lead pendiente')
 
   try {
-    const filtroCampana = ultimaCampana?.id
-      ? ` && campana_id="${ultimaCampana.id}"`
-      : ''
-
+    const filtroCampana = filtroPorCampana(campana)
     const res = await pb.collection('leads').getList(1, 1, {
       filter: `${filtroPendientes}${filtroCampana}`,
       sort: '-score',
     })
 
     console.log('RESPUESTA LEADS:', res)
+
+    if (campanaSeleccionadaRef.current !== campana) return
 
     if (!res.items || res.items.length === 0) {
       setLead(null)
@@ -131,9 +187,14 @@ function App() {
     console.error('ERROR CARGAR LEAD:', error)
     log(`❌ Error cargando lead: ${error.message}`)
   } finally {
-    setLoading(false)
+    if (campanaSeleccionadaRef.current === campana) setLoading(false)
   }
 }
+
+ const recargarLeads = async () => {
+  const campana = ultimaCampana
+  await Promise.all([cargarStats(campana), cargarLead(campana)])
+ }
 
  const enviar = async () => {
   if (!lead) return
@@ -149,7 +210,7 @@ function App() {
         lead_id: lead.id,
         telefono: lead.telefono_limpio,
         mensaje,
-        campana_id: ultimaCampana?.id || lead.campana_id || '',
+        campana_id: lead.campana_id || ultimaCampana?.id || '',
       }),
     })
 
@@ -157,8 +218,7 @@ function App() {
 
     log(`✅ Mensaje enviado: ${lead.nombre}`)
     log('🧾 Seguimiento registrado')
-    await cargarStats(ultimaCampana?.id)
-    await cargarLead()
+    await recargarLeads()
   } catch (error) {
     log(`❌ Error enviando: ${error.message}`)
   } finally {
@@ -199,7 +259,7 @@ function App() {
         setCpsDisponibles(cps.totalItems)
         const campanaActual = campanas.items[0] || null
         setCampanas(campanas.items || [])
-        setUltimaCampana(campanaActual)
+        seleccionarCampana(campanaActual)
 
         if (campanaActual?.material_id) {
           const material = await pb.collection('materiales_marketing').getOne(campanaActual.material_id)
@@ -254,7 +314,7 @@ function App() {
             material_id: tipoEnvioEdit === 'texto' ? '' : materialId,
           })
 
-          setUltimaCampana(actualizada)
+          seleccionarCampana(actualizada)
           setCampanaEditando(null)
           setArchivoMaterial(null)
 
@@ -331,8 +391,8 @@ function App() {
   useEffect(() => {
   if (!ultimaCampana) return
 
-  cargarLead()
-  cargarStats(ultimaCampana.id)
+  cargarLead(ultimaCampana)
+  cargarStats(ultimaCampana)
 }, [ultimaCampana])
 
   
@@ -393,12 +453,12 @@ function App() {
 
         {mostrarCampanas && (
           <div className="campaign-list">
-            {campanas.map((c) => (
+            {campanasAgrupadas.map((c) => (
               <button
-                key={c.id}
+                key={c.id_grupo}
 
                 onClick={async () => {
-                  setUltimaCampana(c)
+                  seleccionarCampana(c)
                   setMostrarCampanas(false)
                   setLead(null)
                   setMensaje('')
@@ -410,24 +470,7 @@ function App() {
                     setMaterialActivo(null)
                   }
 
-                  await cargarStats(c.id)
-
-                  const filtroCampana = ` && campana_id="${c.id}"`
-                  const res = await pb.collection('leads').getList(1, 1, {
-                    filter: `${filtroPendientes}${filtroCampana}`,
-                    sort: '-score',
-                  })
-
-                  if (res.items.length > 0) {
-                    const item = res.items[0]
-                    setLead(item)
-                    setMensaje(item.mensaje || '')
-                    log(`📣 Campaña activa: ${c.nicho}`)
-                    log(`📋 Lead: ${item.nombre || 'sin nombre'}`)
-                  } else {
-                    log(`📣 Campaña activa: ${c.nicho}`)
-                    log('🏁 No hay leads pendientes en esta campaña')
-                  }
+                  log(`📣 Campaña activa: ${c.nicho}`)
                 }}
               >
                 {c.nicho} · {c.alcaldia}
@@ -446,7 +489,7 @@ function App() {
       {!lead ? (
         <section className="card empty">
           <h1>Sin leads pendientes</h1>
-          <button onClick={cargarLead}>Recargar</button>
+          <button onClick={recargarLeads}>Recargar</button>
         </section>
       ) : (
         <section className="card">
