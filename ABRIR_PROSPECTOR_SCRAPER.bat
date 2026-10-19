@@ -1,7 +1,7 @@
 @echo off
 setlocal
 set "SELF=%~f0"
-set "TMP_PS1=%TEMP%\ABRIR_PROSPECTOR_%RANDOM%_%RANDOM%.ps1"
+for /f %%I in ('powershell -NoProfile -Command "[guid]::NewGuid().ToString('N')"') do set "TMP_PS1=%TEMP%\ABRIR_PROSPECTOR_%%I.ps1"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$lines = Get-Content -LiteralPath $env:SELF; $marker = [Array]::IndexOf($lines, '#<POWERSHELL>'); if ($marker -lt 0) { exit 1 }; [System.IO.File]::WriteAllLines($env:TMP_PS1, $lines[($marker + 1)..($lines.Length - 1)], (New-Object System.Text.UTF8Encoding($false)))"
@@ -58,6 +58,24 @@ function Write-Title {
 function Test-Port([int]$Port) {
   try {
     return [bool](Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction Stop | Select-Object -First 1)
+  } catch {
+    return $false
+  }
+}
+
+function Test-LocalHttp([int]$Port, [string]$Path) {
+  try {
+    $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port$Path" -Method Get -TimeoutSec 5 -UseBasicParsing
+    return ($response.StatusCode -eq 200)
+  } catch {
+    return $false
+  }
+}
+
+function Test-ReactService {
+  try {
+    $page = Invoke-WebRequest -Uri "http://127.0.0.1:$ReactPort/" -Method Get -TimeoutSec 5 -UseBasicParsing
+    return ($page.StatusCode -eq 200 -and $page.Content -match '<title>bot-scraper-web</title>' -and (Test-LocalHttp $ReactPort '/@vite/client'))
   } catch {
     return $false
   }
@@ -141,9 +159,14 @@ function Open-PowerShellWindow([string]$Title, [string]$Command) {
 }
 
 function Ensure-PocketBase {
-  if (Test-Port $PocketBasePort) {
+  if (Test-LocalHttp $PocketBasePort '/api/health') {
     Write-Host '[OK] PocketBase ya esta activo en 8091.' -ForegroundColor Green
     return $true
+  }
+
+  if (Test-Port $PocketBasePort) {
+    Write-Host '[ERROR] El puerto 8091 responde, pero PocketBase no pasa /api/health.' -ForegroundColor Red
+    return $false
   }
 
   $exe = Join-Path $PocketBaseDir 'pocketbase.exe'
@@ -155,7 +178,7 @@ function Ensure-PocketBase {
   Write-Host '[...] Iniciando PocketBase en 8091...' -ForegroundColor Yellow
   Open-PowerShellWindow 'POCKETBASE - SCRAPER 8091' "Set-Location '$PocketBaseDir'; .\pocketbase.exe serve --http=127.0.0.1:8091" | Out-Null
 
-  if (Wait-Port $PocketBasePort 35) {
+  if ((Wait-Port $PocketBasePort 35) -and (Test-LocalHttp $PocketBasePort '/api/health')) {
     Write-Host '[OK] PocketBase listo.' -ForegroundColor Green
     return $true
   }
@@ -182,15 +205,19 @@ function Start-React {
   }
 
   if (Test-Port $ReactPort) {
-    Write-Host '[OK] React ya esta activo en 5173.' -ForegroundColor Green
-    return $true
+    if (Test-ReactService) {
+      Write-Host '[OK] React ya esta activo en 5173.' -ForegroundColor Green
+      return $true
+    }
+    Write-Host '[ERROR] El puerto 5173 esta ocupado por un servicio que no responde como Vite.' -ForegroundColor Red
+    return $false
   }
 
   Write-Host '[...] Iniciando React en 5173...' -ForegroundColor Yellow
   $proc = Open-PowerShellWindow 'REACT - SCRAPER 5173' "Set-Location '$ReactDir'; npm run dev -- --host 0.0.0.0 --port 5173"
   Set-Content -Path $ReactPidFile -Value $proc.Id -Encoding ASCII
 
-  if (Wait-Port $ReactPort 50) {
+  if ((Wait-Port $ReactPort 50) -and (Test-ReactService)) {
     Write-Host '[OK] React listo.' -ForegroundColor Green
     return $true
   }
@@ -270,17 +297,20 @@ function Test-PublicUrl([string]$Url, [int]$Port) {
   }
 }
 
-function Ensure-Cloudflare([string]$Name, [int]$Port, [string]$UrlFile, [string]$EnvFallback) {
+function Get-ActiveTunnelUrl([int]$Port, [string]$UrlFile) {
+  $url = Read-TextFile $UrlFile
+  if ((Test-CloudflareForPort $Port) -and $url -and (Test-PublicUrl $url $Port)) {
+    return $url
+  }
+  return ''
+}
+
+function Ensure-Cloudflare([string]$Name, [int]$Port, [string]$UrlFile) {
   $saved = Read-TextFile $UrlFile
   $running = Get-ProcessCommandLines | Where-Object { $_.CommandLine -like "*localhost:$Port*" -or $_.CommandLine -like "*127.0.0.1:$Port*" }
   if ($running -and $saved -and (Test-PublicUrl $saved $Port)) {
     Write-Host "[OK] Cloudflared $Name ya esta activo: $saved" -ForegroundColor Green
     return $saved
-  }
-
-  if ($running -and (Test-PublicUrl $EnvFallback $Port)) {
-    Write-Host "[OK] Cloudflared $Name ya esta activo: $EnvFallback" -ForegroundColor Green
-    return $EnvFallback
   }
 
   foreach ($process in $running) { Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue }
@@ -351,19 +381,17 @@ function Update-Env([string]$PocketBaseUrl) {
 
 function Show-Urls {
   Write-Title
-  $reactUrl = Read-TextFile $ReactUrlFile
-  if (!$reactUrl) { $reactUrl = '' }
-  $pbUrl = Read-TextFile $PocketBaseUrlFile
-  if (!$pbUrl) { $pbUrl = Read-EnvValue 'VITE_PB_URL' }
+  $reactUrl = Get-ActiveTunnelUrl $ReactPort $ReactUrlFile
+  $pbUrl = Get-ActiveTunnelUrl $PocketBasePort $PocketBaseUrlFile
 
   Write-Host 'URLS PARA PROBAR DESDE EL CELULAR' -ForegroundColor Yellow
   Write-Host '========================================' -ForegroundColor Yellow
   Write-Host ''
   Write-Host 'React / Scraper:' -ForegroundColor Cyan
-  if ($reactUrl) { Write-Host $reactUrl } else { Write-Host 'NO DETECTADA' }
+  if ($reactUrl) { Write-Host $reactUrl } else { Write-Host 'NO DISPONIBLE: inicia el proyecto con la opcion 1.' -ForegroundColor Red }
   Write-Host ''
   Write-Host 'PocketBase publico:' -ForegroundColor Cyan
-  if ($pbUrl) { Write-Host $pbUrl } else { Write-Host 'NO DETECTADA' }
+  if ($pbUrl) { Write-Host $pbUrl } else { Write-Host 'NO DISPONIBLE: inicia el proyecto con la opcion 1.' -ForegroundColor Red }
   Write-Host ''
   Write-Host 'Webhooks de n8n: dentro de la URL de React, sin editor publico.' -ForegroundColor Cyan
   Write-Host ''
@@ -380,8 +408,8 @@ function Show-Status {
   $docker = Test-DockerReady
   $n8nState = Get-ContainerState $N8nContainer
   $wahaState = Get-ContainerState $WahaContainer
-  $reactCf = Test-CloudflareForPort $ReactPort
-  $pbCf = Test-CloudflareForPort $PocketBasePort
+  $reactUrl = Get-ActiveTunnelUrl $ReactPort $ReactUrlFile
+  $pbUrl = Get-ActiveTunnelUrl $PocketBasePort $PocketBaseUrlFile
 
   function Status-Line([string]$Name, [bool]$Ok, [string]$Detail = '') {
     $text = if ($Ok) { 'ACTIVO' } else { 'APAGADO' }
@@ -391,12 +419,12 @@ function Show-Status {
   }
 
   Status-Line 'Docker Desktop:' $docker
-  Status-Line 'n8n:' ($n8nState -eq 'running') $n8nState
-  Status-Line 'WAHA:' ($wahaState -eq 'running') $wahaState
-  Status-Line 'PocketBase 8091:' (Test-Port $PocketBasePort)
-  Status-Line 'React 5173:' (Test-Port $ReactPort)
-  Status-Line 'Cloudflare React:' $reactCf (Read-TextFile $ReactUrlFile)
-  Status-Line 'Cloudflare PB:' $pbCf (Read-TextFile $PocketBaseUrlFile)
+  Status-Line 'n8n:' (($n8nState -eq 'running') -and (Test-LocalHttp $N8nPort '/healthz')) $n8nState
+  Status-Line 'WAHA:' (($wahaState -eq 'running') -and (Test-Port $WahaPort)) "$wahaState; API protegida"
+  Status-Line 'PocketBase 8091:' (Test-LocalHttp $PocketBasePort '/api/health')
+  Status-Line 'React 5173:' (Test-ReactService)
+  Status-Line 'Cloudflare React:' ([bool]$reactUrl) $reactUrl
+  Status-Line 'Cloudflare PB:' ([bool]$pbUrl) $pbUrl
   Write-Host ''
 }
 
@@ -410,6 +438,14 @@ function Start-All {
   if (!$n8nOk) { Write-Host '[ERROR] n8n no esta activo.' -ForegroundColor Red; return $false }
   $wahaOk = Ensure-Container $WahaContainer 'WAHA'
   if (!$wahaOk) { Write-Host '[ERROR] WAHA no esta activo.' -ForegroundColor Red; return $false }
+  if (!(Test-LocalHttp $N8nPort '/healthz')) {
+    Write-Host '[ERROR] n8n no responde en /healthz.' -ForegroundColor Red
+    return $false
+  }
+  if (!(Test-Port $WahaPort)) {
+    Write-Host '[ERROR] WAHA no tiene abierto el puerto 3001.' -ForegroundColor Red
+    return $false
+  }
 
   $pbOk = Ensure-PocketBase
   $reactOk = Start-React
@@ -419,17 +455,24 @@ function Start-All {
     return $false
   }
 
-  $oldReact = ''
-  $oldPb = Read-EnvValue 'VITE_PB_URL'
-  $reactUrl = Ensure-Cloudflare 'REACT' $ReactPort $ReactUrlFile $oldReact
-  $pbUrl = Ensure-Cloudflare 'POCKETBASE' $PocketBasePort $PocketBaseUrlFile $oldPb
+  $reactUrl = Ensure-Cloudflare 'REACT' $ReactPort $ReactUrlFile
+  $pbUrl = Ensure-Cloudflare 'POCKETBASE' $PocketBasePort $PocketBaseUrlFile
   if (!$reactUrl -or !$pbUrl) {
     Write-Host '[ERROR] No se pudo verificar uno de los tuneles publicos.' -ForegroundColor Red
     return $false
   }
 
-  if (Update-Env $pbUrl) {
-    Restart-React | Out-Null
+  $envChanged = Update-Env $pbUrl
+  if ((Read-EnvValue 'VITE_PB_URL') -ne $pbUrl -or (Read-EnvValue 'VITE_N8N_SEND_WEBHOOK') -ne '/webhook/enviar-lead-manual' -or (Read-EnvValue 'VITE_N8N_SCRAPER_WEBHOOK') -ne '/webhook/iniciar-scraper') {
+    Write-Host '[ERROR] web\.env no contiene las rutas publicas requeridas.' -ForegroundColor Red
+    return $false
+  }
+  if ($envChanged) {
+    if (!(Restart-React)) { return $false }
+  }
+  if (!(Test-ReactService) -or !(Test-PublicUrl $reactUrl $ReactPort) -or !(Test-PublicUrl $pbUrl $PocketBasePort)) {
+    Write-Host '[ERROR] Los servicios o tuneles dejaron de responder durante el arranque.' -ForegroundColor Red
+    return $false
   }
 
   Write-Host ''
@@ -462,11 +505,29 @@ function Start-All {
   return $true
 }
 
+function Start-AllOnce {
+  $mutex = New-Object System.Threading.Mutex($false, 'Local\ProspectorScraperLauncherStart')
+  $acquired = $false
+  try {
+    try { $acquired = $mutex.WaitOne(120000) }
+    catch [System.Threading.AbandonedMutexException] { $acquired = $true }
+    if (!$acquired) {
+      Write-Host '[ERROR] Otro arranque sigue en curso; vuelve a intentarlo.' -ForegroundColor Red
+      return $false
+    }
+    return Start-All
+  } finally {
+    if ($acquired) { $mutex.ReleaseMutex() }
+    $mutex.Dispose()
+  }
+}
+
 if ($args.Count -gt 0) {
   switch ($args[0]) {
     '--status' { Show-Status; exit 0 }
-    '--start' { if (Start-All) { exit 0 } else { exit 1 } }
-    default { Write-Host 'Uso: --status o --start'; exit 2 }
+    '--urls' { Show-Urls; exit 0 }
+    '--start' { if (Start-AllOnce) { exit 0 } else { exit 1 } }
+    default { Write-Host 'Uso: --status, --urls o --start'; exit 2 }
   }
 }
 
@@ -479,7 +540,7 @@ while ($true) {
   $option = Read-Host 'Elige una opcion'
 
   switch ($option) {
-    '1' { Start-All | Out-Null; Pause }
+    '1' { Start-AllOnce | Out-Null; Pause }
     '2' { Show-Status; Pause }
     '3' { Show-Urls; Pause }
     default {
