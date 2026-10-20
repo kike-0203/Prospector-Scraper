@@ -13,8 +13,9 @@ if errorlevel 1 (
 )
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%TMP_PS1%" %*
+set "LAUNCHER_EXIT=%ERRORLEVEL%"
 del /q "%TMP_PS1%" >nul 2>&1
-exit /b
+exit /b %LAUNCHER_EXIT%
 
 #<POWERSHELL>
 $ErrorActionPreference = 'Continue'
@@ -44,6 +45,7 @@ $RuntimeDir      = Join-Path $env:TEMP 'ProspectorScraperLauncher'
 $ReactUrlFile    = Join-Path $RuntimeDir 'react_url.txt'
 $PocketBaseUrlFile = Join-Path $RuntimeDir 'pb_url.txt'
 $ReactPidFile    = Join-Path $RuntimeDir 'react_window_pid.txt'
+$PocketBaseLogDir = Join-Path $RuntimeDir 'pocketbase'
 $CfHelperFile    = Join-Path $RuntimeDir 'cloudflare_helper.ps1'
 New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
 
@@ -72,7 +74,22 @@ function Test-LocalHttp([int]$Port, [string]$Path) {
   }
 }
 
+function Get-PortProcess([int]$Port) {
+  $connection = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
+  if (!$connection) { return $null }
+  return Get-CimInstance Win32_Process -Filter "ProcessId=$($connection.OwningProcess)" -ErrorAction SilentlyContinue
+}
+
+function Test-PocketBaseService {
+  $process = Get-PortProcess $PocketBasePort
+  if (!$process -or !$PocketBaseDir) { return $false }
+  $expected = Join-Path $PocketBaseDir 'pocketbase.exe'
+  return ($process.ExecutablePath -eq $expected -and (Test-LocalHttp $PocketBasePort '/api/health'))
+}
+
 function Test-ReactService {
+  $process = Get-PortProcess $ReactPort
+  if (!$process -or $process.CommandLine -notlike "*$ReactDir*vite*") { return $false }
   try {
     $page = Invoke-WebRequest -Uri "http://127.0.0.1:$ReactPort/" -Method Get -TimeoutSec 5 -UseBasicParsing
     return ($page.StatusCode -eq 200 -and $page.Content -match '<title>bot-scraper-web</title>' -and (Test-LocalHttp $ReactPort '/@vite/client'))
@@ -159,13 +176,14 @@ function Open-PowerShellWindow([string]$Title, [string]$Command) {
 }
 
 function Ensure-PocketBase {
-  if (Test-LocalHttp $PocketBasePort '/api/health') {
+  if (Test-PocketBaseService) {
     Write-Host '[OK] PocketBase ya esta activo en 8091.' -ForegroundColor Green
     return $true
   }
 
   if (Test-Port $PocketBasePort) {
-    Write-Host '[ERROR] El puerto 8091 responde, pero PocketBase no pasa /api/health.' -ForegroundColor Red
+    $owner = Get-PortProcess $PocketBasePort
+    Write-Host "[ERROR] El puerto 8091 pertenece a PID $($owner.ProcessId) ($($owner.ExecutablePath)); no es el PocketBase configurado o no pasa /api/health." -ForegroundColor Red
     return $false
   }
 
@@ -174,16 +192,39 @@ function Ensure-PocketBase {
     Write-Host "[ERROR] No encontre PocketBase en: $exe" -ForegroundColor Red
     return $false
   }
-
-  Write-Host '[...] Iniciando PocketBase en 8091...' -ForegroundColor Yellow
-  Open-PowerShellWindow 'POCKETBASE - SCRAPER 8091' "Set-Location '$PocketBaseDir'; .\pocketbase.exe serve --http=127.0.0.1:8091" | Out-Null
-
-  if ((Wait-Port $PocketBasePort 35) -and (Test-LocalHttp $PocketBasePort '/api/health')) {
-    Write-Host '[OK] PocketBase listo.' -ForegroundColor Green
-    return $true
+  if (!(Test-Path -LiteralPath (Join-Path $PocketBaseDir 'pb_data\data.db'))) {
+    Write-Host '[ERROR] No encontre la base existente en PocketBaseDir\pb_data\data.db. No iniciare una base vacia.' -ForegroundColor Red
+    return $false
   }
 
-  Write-Host '[ERROR] PocketBase no abrio el puerto 8091.' -ForegroundColor Red
+  Write-Host '[...] Iniciando PocketBase en 8091...' -ForegroundColor Yellow
+  New-Item -ItemType Directory -Force -Path $PocketBaseLogDir | Out-Null
+  $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+  $stdout = Join-Path $PocketBaseLogDir "stdout_$stamp.log"
+  $stderr = Join-Path $PocketBaseLogDir "stderr_$stamp.log"
+  try {
+    $process = Start-Process -FilePath $exe -WorkingDirectory $PocketBaseDir -ArgumentList 'serve', '--http=127.0.0.1:8091' -RedirectStandardOutput $stdout -RedirectStandardError $stderr -WindowStyle Hidden -PassThru -ErrorAction Stop
+  } catch {
+    Write-Host "[ERROR] PocketBase no pudo ejecutarse: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host 'Revisa Control de aplicaciones/Code Integrity de Windows si el ejecutable fue bloqueado.' -ForegroundColor Yellow
+    return $false
+  }
+
+  for ($i = 0; $i -lt 35; $i++) {
+    if (Test-PocketBaseService) {
+      Write-Host "[OK] PocketBase listo (PID $($process.Id))." -ForegroundColor Green
+      return $true
+    }
+    $process.Refresh()
+    if ($process.HasExited) {
+      Write-Host "[ERROR] PocketBase termino con codigo $($process.ExitCode)." -ForegroundColor Red
+      break
+    }
+    Start-Sleep -Seconds 1
+  }
+  Write-Host "[ERROR] PocketBase no abrio el puerto 8091. Logs: $stdout y $stderr" -ForegroundColor Red
+  if (Test-Path $stdout) { Get-Content -LiteralPath $stdout -Tail 15 | ForEach-Object { Write-Host $_ } }
+  if (Test-Path $stderr) { Get-Content -LiteralPath $stderr -Tail 15 | ForEach-Object { Write-Host $_ -ForegroundColor Red } }
   return $false
 }
 
@@ -192,10 +233,17 @@ function Stop-ReactProcess {
   $pids = $connections | Select-Object -ExpandProperty OwningProcess -Unique
   foreach ($pidValue in $pids) {
     if ($pidValue -and $pidValue -ne $PID) {
-      taskkill /PID $pidValue /T /F *> $null
+      $owner = Get-CimInstance Win32_Process -Filter "ProcessId=$pidValue" -ErrorAction SilentlyContinue
+      if ($owner.CommandLine -like "*$ReactDir*vite*") {
+        taskkill /PID $pidValue /T /F *> $null
+      } else {
+        Write-Host "[ERROR] No detendre PID ${pidValue}: no pertenece al React de Prospector." -ForegroundColor Red
+        return $false
+      }
     }
   }
   Start-Sleep -Seconds 2
+  return $true
 }
 
 function Start-React {
@@ -228,7 +276,7 @@ function Start-React {
 
 function Restart-React {
   Write-Host '[...] Reiniciando React para que Vite lea las URLs nuevas...' -ForegroundColor Yellow
-  Stop-ReactProcess
+  if (!(Stop-ReactProcess)) { return $false }
   return Start-React
 }
 
@@ -421,7 +469,7 @@ function Show-Status {
   Status-Line 'Docker Desktop:' $docker
   Status-Line 'n8n:' (($n8nState -eq 'running') -and (Test-LocalHttp $N8nPort '/healthz')) $n8nState
   Status-Line 'WAHA:' (($wahaState -eq 'running') -and (Test-Port $WahaPort)) "$wahaState; API protegida"
-  Status-Line 'PocketBase 8091:' (Test-LocalHttp $PocketBasePort '/api/health')
+  Status-Line 'PocketBase 8091:' (Test-PocketBaseService)
   Status-Line 'React 5173:' (Test-ReactService)
   Status-Line 'Cloudflare React:' ([bool]$reactUrl) $reactUrl
   Status-Line 'Cloudflare PB:' ([bool]$pbUrl) $pbUrl
