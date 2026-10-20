@@ -111,7 +111,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "{ \"ok\": true, \"confirmed\": true,\n  \"lead_id\": \"{{ $('CODE_NormalizarEnvio').first().json.lead_id }}\",\n  \"waha_message_id\": \"{{ $('CODE_RevisarRespuestaWAHA').first().json.waha_message_id }}\",\n  \"seguimiento_id\": \"{{ $('PB_CrearSeguimiento').first().json.id }}\" }",
+        "responseBody": "={{ JSON.stringify($json) }}",
         "options": {
           "responseCode": 200
         }
@@ -494,6 +494,19 @@
       ],
       "id": "99954076-4253-463a-91a8-544cdef791f1",
       "name": "CODE_ContinuarEnvio"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $input.first().json;\nconst request = $('CODE_NormalizarEnvio').first().json;\nconst waha = $('CODE_RevisarRespuestaWAHA').first().json;\nconst followup = $('PB_CrearSeguimiento').first().json;\nif (lead.id !== request.lead_id || lead.estado !== 'enviado_manual' || lead.estado_mensaje !== 'enviado') {\n  throw new Error('PocketBase no confirmo el estado enviado del lead');\n}\nif (followup.lead_id !== request.lead_id || !followup.id || followup.resultado !== 'enviado') {\n  throw new Error('PocketBase no confirmo el seguimiento del envio');\n}\nif (waha.enviado_por_waha !== true || typeof waha.waha_message_id !== 'string' || !waha.waha_message_id.trim()) {\n  throw new Error('WAHA no confirmo el ID del mensaje');\n}\nreturn [{ json: { ok: true, confirmed: true, lead_id: request.lead_id,\n  waha_message_id: waha.waha_message_id, seguimiento_id: followup.id } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        176
+      ],
+      "id": "5502efe5-3a97-4591-a8c8-e5059be8c7f8",
+      "name": "CODE_ConfirmarPersistencia"
     }
   ],
   "pinData": {},
@@ -540,7 +553,7 @@
       "main": [
         [
           {
-            "node": "RESP_EnviarLeadManual",
+            "node": "CODE_ConfirmarPersistencia",
             "type": "main",
             "index": 0
           }
@@ -725,6 +738,17 @@
         [
           {
             "node": "IF_TieneMaterial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_ConfirmarPersistencia": {
+      "main": [
+        [
+          {
+            "node": "RESP_EnviarLeadManual",
             "type": "main",
             "index": 0
           }

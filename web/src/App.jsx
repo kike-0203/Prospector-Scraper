@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import PocketBase from 'pocketbase'
+import { confirmManualSend, manualSendWarningForLead } from './manualSendResult'
 import './App.css'
 
 const PB_URL = import.meta.env.VITE_PB_URL;
@@ -48,8 +49,13 @@ function App() {
   const [logs, setLogs] = useState([])
   const [stats, setStats] = useState({ pendientes: 0, enviados: 0, saltados: 0, revision: 0 })
   const [loading, setLoading] = useState(false)
-  const [sendWarning, setSendWarning] = useState('')
+  const [sendWarning, setSendWarning] = useState({ leadId: '', message: '' })
   const sendInProgress = useRef(false)
+  const visibleSendWarning = manualSendWarningForLead(
+    lead,
+    sendWarning,
+    lead && localStorage.getItem(`prospector-send:${lead.id}`),
+  )
   const [tab, setTab] = useState('leads')
   const [nicho, setNicho] = useState('Tamales')
   const [alcaldia, setAlcaldia] = useState('Coyoacan')
@@ -178,7 +184,7 @@ function App() {
     if (!res.items || res.items.length === 0) {
       setLead(null)
       setMensaje('')
-      setSendWarning('')
+      setSendWarning({ leadId: '', message: '' })
       log('🏁 No hay más leads pendientes')
       return
     }
@@ -189,11 +195,9 @@ function App() {
 
     setLead(item)
     setMensaje(item.mensaje || '')
-    setSendWarning(
-      item.estado === 'envio_no_confirmado' || localStorage.getItem(`prospector-send:${item.id}`)
-        ? 'Este contacto tiene un intento sin confirmar. Revisa n8n y el chat antes de cualquier nuevo envío.'
-        : ''
-    )
+    setSendWarning(previous => previous.leadId === item.id
+      ? previous
+      : { leadId: item.id, message: '' })
     log(`📋 Lead: ${item.nombre || 'sin nombre'}`)
   } catch (error) {
     console.error('ERROR CARGAR LEAD:', error)
@@ -211,10 +215,11 @@ function App() {
  const enviar = async () => {
   if (!lead || sendInProgress.current || lead.estado === 'envio_no_confirmado' ||
       localStorage.getItem(`prospector-send:${lead.id}`)) return
+  const attemptedLead = lead
   sendInProgress.current = true
   setLoading(true)
-  setSendWarning('')
-  const attemptKey = `prospector-send:${lead.id}`
+  setSendWarning({ leadId: attemptedLead.id, message: '' })
+  const attemptKey = `prospector-send:${attemptedLead.id}`
   localStorage.setItem(attemptKey, new Date().toISOString())
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 45000)
@@ -227,26 +232,17 @@ function App() {
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        lead_id: lead.id,
-        telefono: lead.telefono_limpio,
+        lead_id: attemptedLead.id,
+        telefono: attemptedLead.telefono_limpio,
         mensaje,
-        campana_id: lead.campana_id || ultimaCampana?.id || '',
+        campana_id: attemptedLead.campana_id || ultimaCampana?.id || '',
       }),
     })
 
-    if (!resp.ok) throw new Error(`n8n/WAHA devolvió HTTP ${resp.status}. El resultado requiere revisión.`)
-    const result = await resp.json()
-    if (result?.ok !== true || result?.confirmed !== true ||
-        result?.lead_id !== lead.id || !result?.waha_message_id || !result?.seguimiento_id) {
-      throw new Error('n8n respondió sin una confirmación completa de WAHA y PocketBase.')
-    }
-    const saved = await pb.collection('leads').getOne(lead.id)
-    if (saved.estado !== 'enviado_manual' || saved.estado_mensaje !== 'enviado') {
-      throw new Error('WAHA confirmó el mensaje, pero el estado del lead no quedó confirmado en PocketBase.')
-    }
+    await confirmManualSend(resp, attemptedLead.id, id => pb.collection('leads').getOne(id))
 
     localStorage.removeItem(attemptKey)
-    log(`✅ Mensaje enviado: ${lead.nombre}`)
+    log(`✅ Mensaje enviado: ${attemptedLead.nombre}`)
     log('🧾 Seguimiento registrado')
     await recargarLeads()
   } catch (error) {
@@ -254,7 +250,7 @@ function App() {
       ? 'La espera superó 45 segundos. Esto no demuestra que el mensaje haya fallado.'
       : error.message
     const warning = `${detail} No vuelvas a pulsar Enviar hasta revisar la ejecución y el chat.`
-    setSendWarning(warning)
+    setSendWarning({ leadId: attemptedLead.id, message: warning })
     log(`❌ ${warning}`)
   } finally {
     clearTimeout(timeout)
@@ -550,8 +546,8 @@ function App() {
             onChange={(e) => setMensaje(e.target.value)}
           />
 
-          {sendWarning && <p role="alert">{sendWarning}</p>}
-          <button className="send" onClick={enviar} disabled={loading || Boolean(sendWarning)}>
+          {visibleSendWarning && <p role="alert">{visibleSendWarning}</p>}
+          <button className="send" onClick={enviar} disabled={loading || Boolean(visibleSendWarning)}>
             {loading ? 'Procesando...' : '📲 ENVIAR WHATSAPP'}
           </button>
 
