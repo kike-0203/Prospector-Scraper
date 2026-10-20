@@ -111,7 +111,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "{\n  \"ok\": true,\n  \"message\": \"mensaje enviado\",\n  \"lead_id\": \"{{ $('CODE_NormalizarEnvio').first().json.lead_id }}\"\n}",
+        "responseBody": "{ \"ok\": true, \"confirmed\": true,\n  \"lead_id\": \"{{ $('CODE_NormalizarEnvio').first().json.lead_id }}\",\n  \"waha_message_id\": \"{{ $('CODE_RevisarRespuestaWAHA').first().json.waha_message_id }}\",\n  \"seguimiento_id\": \"{{ $('PB_CrearSeguimiento').first().json.id }}\" }",
         "options": {
           "responseCode": 200
         }
@@ -146,7 +146,7 @@
             },
             {
               "name": "nota",
-              "value": "Mensaje enviado manualmente desde CRM. Chat refrescado en WAHA."
+              "value": "={{ 'Mensaje manual confirmado por WAHA. ID: ' + $('CODE_RevisarRespuestaWAHA').first().json.waha_message_id }}"
             },
             {
               "name": "fecha",
@@ -167,7 +167,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const normal = $('CODE_NormalizarEnvio').first().json;\nconst r = $json || {};\nconst data = r._data || {};\nconst messageId = r.id || data.id?._serialized || r.messageId || r.message?.id;\nif (!messageId || r.error || r.statusCode >= 400) {\n  throw new Error('WAHA no confirmo el envio; no se marcara el lead como enviado');\n}\n\nreturn [{\n  json: {\n    ...normal,\n\n    enviado_por_waha: true,\n    waha_sin_respuesta: Object.keys(r).length === 0,\n\n    ack: r.ack ?? data.ack ?? '',\n    ackName: r.ackName || '',\n    fromMe: r.fromMe ?? data.id?.fromMe ?? '',\n    remote: data.id?.remote || r.to || normal.chatId,\n    body: r.body || r.text || normal.mensaje,\n    waha_message_id: messageId,\n\n    raw: r\n  }\n}];"
+        "jsCode": "const normal = $('CODE_ValidarChatWAHA').first().json;\nconst r = $json || {};\nconst data = r._data || {};\nconst candidate = data.id?._serialized || (typeof r.id === 'string' ? r.id : '') || r.messageId || r.message?.id;\nconst messageId = typeof candidate === 'string' ? candidate.trim() : '';\nif (!messageId || r.error || Number(r.statusCode || 0) >= 400) {\n  throw new Error('WAHA no confirmo el envio con un ID; el lead sigue sin confirmacion');\n}\nreturn [{ json: { ...normal, enviado_por_waha: true, waha_message_id: messageId,\n  ack: r.ack ?? data.ack ?? '', fromMe: r.fromMe ?? data.id?.fromMe ?? '',\n  remote: data.id?.remote || r.to || normal.chatId } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -177,40 +177,6 @@
       ],
       "id": "7cf5d581-8cfb-4936-9733-f0562134719d",
       "name": "CODE_RevisarRespuestaWAHA"
-    },
-    {
-      "parameters": {
-        "url": "={{ $('CODE_NormalizarEnvio').first().json.WAHA_URL }}/api/prospector-scraper/chats/{{ encodeURIComponent($json.remote || $json.chatId) }}/messages",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "limit",
-              "value": "10"
-            }
-          ]
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Api-Key",
-              "value": "={{ $env.WAHA_API_KEY }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        -320,
-        464
-      ],
-      "id": "38b262f8-594e-4662-84a2-47c82985d24b",
-      "name": "HTTP_WAHA_LeerChatDespuesEnvio",
-      "alwaysOutputData": true,
-      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -309,7 +275,7 @@
             },
             {
               "name": "chatId",
-              "value": "={{ $('CODE_NormalizarEnvio').first().json.chatId }}"
+              "value": "={{ $('CODE_ValidarChatWAHA').first().json.chatId }}"
             },
             {
               "name": "file",
@@ -429,6 +395,105 @@
       ],
       "id": "c676c84b-279f-5488-879b-a415425de5eb",
       "name": "IF_TieneMaterial"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $input.first().json;\nconst normal = $('CODE_NormalizarEnvio').first().json;\nif (lead.id !== normal.lead_id) throw new Error('El lead consultado no coincide con el solicitado');\nif (lead.estado === 'envio_no_confirmado') throw new Error('Este lead tiene un intento sin confirmar; revisa WAHA y n8n antes de reenviar');\nif (lead.estado === 'enviado_manual' || lead.estado_mensaje === 'enviado') throw new Error('Este lead ya figura enviado; no se repetira el mensaje');\nif (lead.estado_mensaje !== 'generado' || lead.estado_whatsapp !== 'verificado' || lead.whatsapp_verificado !== true) throw new Error('El lead no esta listo para envio manual');\nreturn [{ json: lead }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        160
+      ],
+      "id": "13fbc303-f8f9-4140-a59e-cdc3f119e29d",
+      "name": "CODE_ValidarEstadoLead"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('CODE_NormalizarEnvio').first().json.WAHA_URL }}/api/contacts/check-exists",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "phone",
+              "value": "={{ $('CODE_NormalizarEnvio').first().json.telefono }}"
+            },
+            {
+              "name": "session",
+              "value": "={{ $('CODE_NormalizarEnvio').first().json.session }}"
+            }
+          ]
+        },
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.WAHA_API_KEY }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        800,
+        160
+      ],
+      "id": "1424772e-98b8-483a-8de4-946196307859",
+      "name": "HTTP_WAHA_ResolverChat"
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first().json;\nif (result.numberExists !== true || typeof result.chatId !== 'string' || !result.chatId.includes('@')) {\n  throw new Error('WAHA no devolvio un chat confirmado; no se enviara el mensaje');\n}\nconst normal = $('CODE_NormalizarEnvio').first().json;\nconst merged = $('Merge_LeadCampana').first().json;\nreturn [{ json: { ...merged, ...normal, chatId: result.chatId } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        160
+      ],
+      "id": "92b22a32-df9f-4f8c-8e7b-1ea3920525e7",
+      "name": "CODE_ValidarChatWAHA"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $json.POCKETBASE_URL }}/api/collections/leads/records/{{ $json.lead_id }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "estado",
+              "value": "envio_no_confirmado"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1184,
+        160
+      ],
+      "id": "448e6481-5cb1-4910-8ec9-77df305fb751",
+      "name": "PB_MarcarIntentoSinConfirmar"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: $('CODE_ValidarChatWAHA').first().json }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        160
+      ],
+      "id": "99954076-4253-463a-91a8-544cdef791f1",
+      "name": "CODE_ContinuarEnvio"
     }
   ],
   "pinData": {},
@@ -475,7 +540,7 @@
       "main": [
         [
           {
-            "node": "PB_CrearSeguimiento",
+            "node": "RESP_EnviarLeadManual",
             "type": "main",
             "index": 0
           }
@@ -486,7 +551,7 @@
       "main": [
         [
           {
-            "node": "RESP_EnviarLeadManual",
+            "node": "PB_MarcarLeadEnviado",
             "type": "main",
             "index": 0
           }
@@ -497,18 +562,7 @@
       "main": [
         [
           {
-            "node": "HTTP_WAHA_LeerChatDespuesEnvio",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP_WAHA_LeerChatDespuesEnvio": {
-      "main": [
-        [
-          {
-            "node": "PB_MarcarLeadEnviado",
+            "node": "PB_CrearSeguimiento",
             "type": "main",
             "index": 0
           }
@@ -530,7 +584,7 @@
       "main": [
         [
           {
-            "node": "PB_LeerCampana",
+            "node": "CODE_ValidarEstadoLead",
             "type": "main",
             "index": 0
           }
@@ -541,7 +595,7 @@
       "main": [
         [
           {
-            "node": "IF_TieneMaterial",
+            "node": "HTTP_WAHA_ResolverChat",
             "type": "main",
             "index": 0
           }
@@ -616,6 +670,61 @@
         [
           {
             "node": "HTTP_WAHA_EnviarMensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_ValidarEstadoLead": {
+      "main": [
+        [
+          {
+            "node": "PB_LeerCampana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_WAHA_ResolverChat": {
+      "main": [
+        [
+          {
+            "node": "CODE_ValidarChatWAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_ValidarChatWAHA": {
+      "main": [
+        [
+          {
+            "node": "PB_MarcarIntentoSinConfirmar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_MarcarIntentoSinConfirmar": {
+      "main": [
+        [
+          {
+            "node": "CODE_ContinuarEnvio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_ContinuarEnvio": {
+      "main": [
+        [
+          {
+            "node": "IF_TieneMaterial",
             "type": "main",
             "index": 0
           }

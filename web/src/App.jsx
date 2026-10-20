@@ -30,7 +30,7 @@ pb.autoCancellation(false)
 
 
 const filtroPendientes =
-  `mensaje_generado=true && whatsapp_verificado=true && estado_mensaje="generado" && estado_whatsapp="verificado"`
+  `mensaje_generado=true && whatsapp_verificado=true && estado_mensaje="generado" && estado_whatsapp="verificado" && estado!="envio_no_confirmado"`
 
 const oportunidadLabels = {
   pagina_web: '🌐 Página web',
@@ -46,8 +46,10 @@ function App() {
   const [lead, setLead] = useState(null)
   const [mensaje, setMensaje] = useState('')
   const [logs, setLogs] = useState([])
-  const [stats, setStats] = useState({ pendientes: 0, enviados: 0, saltados: 0 })
+  const [stats, setStats] = useState({ pendientes: 0, enviados: 0, saltados: 0, revision: 0 })
   const [loading, setLoading] = useState(false)
+  const [sendWarning, setSendWarning] = useState('')
+  const sendInProgress = useRef(false)
   const [tab, setTab] = useState('leads')
   const [nicho, setNicho] = useState('Tamales')
   const [alcaldia, setAlcaldia] = useState('Coyoacan')
@@ -118,7 +120,7 @@ function App() {
 
  const cargarStats = async (campana = ultimaCampana) => {
   if (!campana) {
-    setStats({ pendientes: 0, enviados: 0, saltados: 0 })
+    setStats({ pendientes: 0, enviados: 0, saltados: 0, revision: 0 })
     return
   }
   try {
@@ -135,12 +137,16 @@ function App() {
     const saltados = await pb.collection('leads').getList(1, 1, {
       filter: `(estado="saltado_manual" || estado_mensaje="saltado")${filtroCampana}`,
     })
+    const revision = await pb.collection('leads').getList(1, 1, {
+      filter: `estado="envio_no_confirmado"${filtroCampana}`,
+    })
 
     if (campanaSeleccionadaRef.current === campana) {
       setStats({
         pendientes: pendientes.totalItems,
         enviados: enviados.totalItems,
         saltados: saltados.totalItems,
+        revision: revision.totalItems,
       })
     }
   } catch (error) {
@@ -172,6 +178,7 @@ function App() {
     if (!res.items || res.items.length === 0) {
       setLead(null)
       setMensaje('')
+      setSendWarning('')
       log('🏁 No hay más leads pendientes')
       return
     }
@@ -182,6 +189,11 @@ function App() {
 
     setLead(item)
     setMensaje(item.mensaje || '')
+    setSendWarning(
+      item.estado === 'envio_no_confirmado' || localStorage.getItem(`prospector-send:${item.id}`)
+        ? 'Este contacto tiene un intento sin confirmar. Revisa n8n y el chat antes de cualquier nuevo envío.'
+        : ''
+    )
     log(`📋 Lead: ${item.nombre || 'sin nombre'}`)
   } catch (error) {
     console.error('ERROR CARGAR LEAD:', error)
@@ -197,8 +209,15 @@ function App() {
  }
 
  const enviar = async () => {
-  if (!lead) return
+  if (!lead || sendInProgress.current || lead.estado === 'envio_no_confirmado' ||
+      localStorage.getItem(`prospector-send:${lead.id}`)) return
+  sendInProgress.current = true
   setLoading(true)
+  setSendWarning('')
+  const attemptKey = `prospector-send:${lead.id}`
+  localStorage.setItem(attemptKey, new Date().toISOString())
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 45000)
 
   try {
     log('📤 Enviando WhatsApp...')
@@ -206,6 +225,7 @@ function App() {
     const resp = await fetch(N8N_SEND_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         lead_id: lead.id,
         telefono: lead.telefono_limpio,
@@ -214,14 +234,31 @@ function App() {
       }),
     })
 
-    if (!resp.ok) throw new Error('WAHA')
+    if (!resp.ok) throw new Error(`n8n/WAHA devolvió HTTP ${resp.status}. El resultado requiere revisión.`)
+    const result = await resp.json()
+    if (result?.ok !== true || result?.confirmed !== true ||
+        result?.lead_id !== lead.id || !result?.waha_message_id || !result?.seguimiento_id) {
+      throw new Error('n8n respondió sin una confirmación completa de WAHA y PocketBase.')
+    }
+    const saved = await pb.collection('leads').getOne(lead.id)
+    if (saved.estado !== 'enviado_manual' || saved.estado_mensaje !== 'enviado') {
+      throw new Error('WAHA confirmó el mensaje, pero el estado del lead no quedó confirmado en PocketBase.')
+    }
 
+    localStorage.removeItem(attemptKey)
     log(`✅ Mensaje enviado: ${lead.nombre}`)
     log('🧾 Seguimiento registrado')
     await recargarLeads()
   } catch (error) {
-    log(`❌ Error enviando: ${error.message}`)
+    const detail = error.name === 'AbortError'
+      ? 'La espera superó 45 segundos. Esto no demuestra que el mensaje haya fallado.'
+      : error.message
+    const warning = `${detail} No vuelvas a pulsar Enviar hasta revisar la ejecución y el chat.`
+    setSendWarning(warning)
+    log(`❌ ${warning}`)
   } finally {
+    clearTimeout(timeout)
+    sendInProgress.current = false
     setLoading(false)
   }
 }
@@ -484,6 +521,7 @@ function App() {
       <section className="stats">
         <div><span>Pendientes</span><strong>{stats.pendientes}</strong></div>
         <div><span>Enviados</span><strong>{stats.enviados}</strong></div>
+        <div><span>En revisión</span><strong>{stats.revision}</strong></div>
       </section>
 
       {!lead ? (
@@ -512,7 +550,8 @@ function App() {
             onChange={(e) => setMensaje(e.target.value)}
           />
 
-          <button className="send" onClick={enviar} disabled={loading}>
+          {sendWarning && <p role="alert">{sendWarning}</p>}
+          <button className="send" onClick={enviar} disabled={loading || Boolean(sendWarning)}>
             {loading ? 'Procesando...' : '📲 ENVIAR WHATSAPP'}
           </button>
 
