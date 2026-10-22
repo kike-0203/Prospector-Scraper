@@ -1,7 +1,7 @@
 {
   "id": "MQHIdKc-3RaMMnK5wgTCb",
   "name": "06_EnviarLeadManual",
-  "active": 1,
+  "active": true,
   "nodes": [
     {
       "parameters": {
@@ -152,7 +152,7 @@
             },
             {
               "name": "nota",
-              "value": "={{ 'Texto confirmado. ID: ' + $('CODE_RevisarRespuestaWAHA').first().json.text_message_id + ($('CODE_RevisarRespuestaWAHA').first().json.video_message_id ? '. Video confirmado. ID: ' + $('CODE_RevisarRespuestaWAHA').first().json.video_message_id : '. Sin video requerido.') }}"
+              "value": "={{ $('CODE_RevisarRespuestaWAHA').first().json.video_message_id ? 'Video confirmado por WAHA. ID: ' + $('CODE_RevisarRespuestaWAHA').first().json.video_message_id : 'Solo texto confirmado por WAHA. ID: ' + $('CODE_RevisarRespuestaWAHA').first().json.text_message_id }}"
             },
             {
               "name": "fecha",
@@ -498,7 +498,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const lead = $input.first().json;\nconst request = $('CODE_NormalizarEnvio').first().json;\nconst waha = $('CODE_RevisarRespuestaWAHA').first().json;\nconst followup = $('PB_CrearSeguimiento').first().json;\nif (lead.id !== request.lead_id || lead.estado !== 'enviado_manual' || lead.estado_mensaje !== 'enviado') {\n  throw new Error('PocketBase no confirmo el estado enviado del lead');\n}\nif (followup.lead_id !== request.lead_id || !followup.id || followup.resultado !== 'enviado') {\n  throw new Error('PocketBase no confirmo el seguimiento del envio');\n}\nif (waha.enviado_por_waha !== true || typeof waha.waha_message_id !== 'string' || !waha.waha_message_id.trim()) {\n  throw new Error('WAHA no confirmo el ID del mensaje');\n}\nreturn [{ json: { ok: true, confirmed: true, lead_id: request.lead_id,\n  waha_message_id: waha.waha_message_id, seguimiento_id: followup.id, texto_enviado: true, texto_message_id: waha.text_message_id, video_enviado: !!waha.video_message_id, video_message_id: waha.video_message_id, seguimiento_texto_id: waha.text_followup_id } }];"
+        "jsCode": "const lead = $input.first().json;\nconst request = $('CODE_NormalizarEnvio').first().json;\nconst waha = $('CODE_RevisarRespuestaWAHA').first().json;\nconst textFollowup = $('PB_RegistrarTextoConfirmado').first().json;\nconst followup = $('PB_CrearSeguimiento').first().json;\nconst hasId = value => typeof value === 'string' && value.trim().length > 0;\nif (lead.id !== request.lead_id || lead.estado !== 'enviado_manual' || lead.estado_mensaje !== 'enviado') {\n  throw new Error('PocketBase no confirmo el estado enviado del lead');\n}\nif (textFollowup.lead_id !== request.lead_id || !textFollowup.id || textFollowup.resultado !== 'enviado' || !hasId(waha.text_message_id) || !String(textFollowup.nota || '').includes(waha.text_message_id)) {\n  throw new Error('PocketBase no confirmo por separado el seguimiento del texto');\n}\nif (!followup.id || followup.lead_id !== request.lead_id || followup.resultado !== 'enviado') {\n  throw new Error('PocketBase no confirmo el seguimiento final');\n}\nif (waha.enviado_por_waha !== true || !hasId(waha.waha_message_id) || waha.waha_message_id !== waha.text_message_id) {\n  throw new Error('WAHA no confirmo el ID del texto');\n}\nif (waha.requiere_video === true) {\n  if (!hasId(waha.video_message_id) || !String(followup.nota || '').includes(waha.video_message_id)) {\n    throw new Error('PocketBase no confirmo por separado el seguimiento del video');\n  }\n} else if (hasId(waha.video_message_id)) {\n  throw new Error('WAHA devolvio un video cuando la campana no lo requiere');\n}\nreturn [{ json: {\n  ok: true, confirmed: true, lead_id: request.lead_id,\n  waha_message_id: waha.text_message_id, seguimiento_id: followup.id,\n  texto_enviado: true, texto_message_id: waha.text_message_id,\n  seguimiento_texto_id: textFollowup.id,\n  video_requerido: waha.requiere_video === true,\n  video_enviado: hasId(waha.video_message_id),\n  video_message_id: waha.video_message_id || '',\n  seguimiento_video_id: waha.requiere_video === true ? followup.id : ''\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

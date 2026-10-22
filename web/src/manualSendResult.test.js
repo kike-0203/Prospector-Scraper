@@ -3,47 +3,62 @@ import assert from 'node:assert/strict'
 import { confirmManualSend, manualSendWarningForLead } from './manualSendResult.js'
 
 const response = body => ({ ok: true, json: async () => body })
-const confirmed = {
-  ok: true,
-  confirmed: true,
-  lead_id: 'test-lead',
-  waha_message_id: 'test-message',
-  seguimiento_id: 'test-followup',
+const confirmedText = {
+  ok: true, confirmed: true, lead_id: 'test-lead',
+  waha_message_id: 'text-message', texto_enviado: true,
+  texto_message_id: 'text-message', seguimiento_texto_id: 'text-followup',
+  video_requerido: false, video_enviado: false, video_message_id: '',
+  seguimiento_video_id: '', seguimiento_id: 'close-followup',
 }
-
-test('accepts a complete response and a persisted sent lead', async () => {
-  const result = await confirmManualSend(response(confirmed), 'test-lead', async () => ({
-    id: 'test-lead', estado: 'enviado_manual', estado_mensaje: 'enviado',
-  }))
-  assert.deepEqual(result, confirmed)
+const savedLead = async () => ({
+  id: 'test-lead', estado: 'enviado_manual', estado_mensaje: 'enviado',
 })
 
-test('rejects an incomplete response before reading PocketBase', async () => {
+test('accepts an independent text confirmation and persisted lead', async () => {
+  const result = await confirmManualSend(response(confirmedText), 'test-lead', savedLead)
+  assert.deepEqual(result, confirmedText)
+})
+
+test('accepts a complete independent text and video confirmation', async () => {
+  const result = await confirmManualSend(response({
+    ...confirmedText, video_requerido: true, video_enviado: true,
+    video_message_id: 'video-message', seguimiento_video_id: 'video-followup',
+  }), 'test-lead', savedLead)
+  assert.equal(result.texto_message_id, 'text-message')
+  assert.equal(result.video_message_id, 'video-message')
+  assert.equal(result.seguimiento_texto_id, 'text-followup')
+  assert.equal(result.seguimiento_video_id, 'video-followup')
+})
+
+test('rejects incomplete response before reading PocketBase', async () => {
   let loaded = false
   await assert.rejects(
-    confirmManualSend(response({ ...confirmed, lead_id: '{{ literal }}' }), 'test-lead', async () => {
-      loaded = true
-    }),
-    /confirmación completa/,
+    confirmManualSend(response({ ...confirmedText, video_enviado: true, video_requerido: true,
+      video_message_id: '', seguimiento_video_id: '' }), 'test-lead', async () => { loaded = true }),
+    /independent text, video and PocketBase confirmations/,
   )
   assert.equal(loaded, false)
 })
 
-test('rejects a response when the lead was not persisted as sent', async () => {
+test('rejects an empty HTTP 200 body as invalid JSON', async () => {
   await assert.rejects(
-    confirmManualSend(response(confirmed), 'test-lead', async () => ({
+    confirmManualSend({ ok: true, json: async () => { throw new Error('empty') } }, 'test-lead', savedLead),
+    /JSON/,
+  )
+})
+
+test('rejects when the lead was not persisted as sent', async () => {
+  await assert.rejects(
+    confirmManualSend(response(confirmedText), 'test-lead', async () => ({
       id: 'test-lead', estado: 'envio_no_confirmado', estado_mensaje: 'generado',
     })),
-    /no quedó confirmado en PocketBase/,
+    /PocketBase/,
   )
 })
 
 test('keeps an old attempt warning off the next lead', () => {
-  const warning = { leadId: 'first-lead', message: 'Revisar el primer intento' }
+  const warning = { leadId: 'first-lead', message: 'Review first attempt' }
   assert.equal(manualSendWarningForLead({ id: 'first-lead' }, warning, true), warning.message)
   assert.equal(manualSendWarningForLead({ id: 'next-lead', estado: 'nuevo' }, warning, false), '')
-  assert.match(
-    manualSendWarningForLead({ id: 'next-lead', estado: 'envio_no_confirmado' }, warning, false),
-    /intento sin confirmar/,
-  )
+  assert.match(manualSendWarningForLead({ id: 'next-lead', estado: 'envio_no_confirmado' }, warning, false), /intento sin confirmar/)
 })
