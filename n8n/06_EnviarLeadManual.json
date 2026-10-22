@@ -1,5 +1,7 @@
 {
+  "id": "MQHIdKc-3RaMMnK5wgTCb",
   "name": "06_EnviarLeadManual",
+  "active": 1,
   "nodes": [
     {
       "parameters": {
@@ -11,12 +13,13 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -448,
-        16
+        -560,
+        224
       ],
-      "id": "475ad2eb-7d3c-4494-87a0-3fb961214375",
+      "id": "dbb98721-dd76-47bc-9de5-06876882dcc2",
       "name": "Webhook_EnviarLeadManual",
-      "webhookId": "0d212316-4fb4-4aac-bbf2-3cd27e22c463"
+      "webhookId": "0d212316-4fb4-4aac-bbf2-3cd27e22c463",
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -25,25 +28,19 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -240,
-        16
+        -352,
+        224
       ],
-      "id": "4632aafa-ffc3-451d-b92d-bbb2ce4406bd",
-      "name": "CODE_NormalizarEnvio"
+      "id": "937ca7d0-b9ec-4ce2-804d-2a25a8c0884d",
+      "name": "CODE_NormalizarEnvio",
+      "retryOnFail": false
     },
     {
       "parameters": {
         "method": "POST",
         "url": "={{ $json.WAHA_URL }}/api/sendText",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Api-Key",
-              "value": "={{ $env.WAHA_API_KEY }}"
-            }
-          ]
-        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -66,11 +63,18 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1088,
-        112
+        1520,
+        368
       ],
-      "id": "7c7bf288-c9c7-411d-afed-0adeed9da3a3",
-      "name": "HTTP_WAHA_EnviarMensaje"
+      "id": "b4fbec6a-34ac-496f-af8a-4f4b869a2520",
+      "name": "HTTP_WAHA_EnviarMensaje",
+      "retryOnFail": false,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PK6ab_ImjfbsuWTmULJGU",
+          "name": "WAHA local (rotated)"
+        }
+      }
     },
     {
       "parameters": {
@@ -102,11 +106,12 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -80,
-        464
+        3312,
+        368
       ],
-      "id": "87554120-2cca-4486-ac06-c2d413a566e0",
-      "name": "PB_MarcarLeadEnviado"
+      "id": "a1267d0b-6ec7-407a-85ee-a570acbaa639",
+      "name": "PB_MarcarLeadEnviado",
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -119,11 +124,12 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        368,
-        464
+        3760,
+        368
       ],
-      "id": "56d989a9-6c53-4f13-bf38-b923b91a8258",
-      "name": "RESP_EnviarLeadManual"
+      "id": "b25bfd0e-516e-440d-a57c-552e1064d83f",
+      "name": "RESP_EnviarLeadManual",
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -146,7 +152,7 @@
             },
             {
               "name": "nota",
-              "value": "={{ 'Mensaje manual confirmado por WAHA. ID: ' + $('CODE_RevisarRespuestaWAHA').first().json.waha_message_id }}"
+              "value": "={{ 'Texto confirmado. ID: ' + $('CODE_RevisarRespuestaWAHA').first().json.text_message_id + ($('CODE_RevisarRespuestaWAHA').first().json.video_message_id ? '. Video confirmado. ID: ' + $('CODE_RevisarRespuestaWAHA').first().json.video_message_id : '. Sin video requerido.') }}"
             },
             {
               "name": "fecha",
@@ -159,24 +165,26 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        144,
-        464
+        3088,
+        368
       ],
-      "id": "86fcf4b2-c730-477a-a93b-1099b1a51a29",
-      "name": "PB_CrearSeguimiento"
+      "id": "d38e35f8-6b5e-4c4d-acac-18db6042e999",
+      "name": "PB_CrearSeguimiento",
+      "retryOnFail": false
     },
     {
       "parameters": {
-        "jsCode": "const normal = $('CODE_ValidarChatWAHA').first().json;\nconst r = $json || {};\nconst data = r._data || {};\nconst candidate = data.id?._serialized || (typeof r.id === 'string' ? r.id : '') || r.messageId || r.message?.id;\nconst messageId = typeof candidate === 'string' ? candidate.trim() : '';\nif (!messageId || r.error || Number(r.statusCode || 0) >= 400) {\n  throw new Error('WAHA no confirmo el envio con un ID; el lead sigue sin confirmacion');\n}\nreturn [{ json: { ...normal, enviado_por_waha: true, waha_message_id: messageId,\n  ack: r.ack ?? data.ack ?? '', fromMe: r.fromMe ?? data.id?.fromMe ?? '',\n  remote: data.id?.remote || r.to || normal.chatId } }];"
+        "jsCode": "const t = $('CODE_ContinuarTrasTexto').first().json;\nlet videoId = '';\nif (t.requiere_video) {\n const r = $input.first().json || {};\n const candidate = r._data?.id?._serialized || r.id?._serialized || (typeof r.id === 'string' ? r.id : '') || r.messageId || r.message?.id;\n videoId = typeof candidate === 'string' ? candidate.trim() : '';\n if (!videoId || r.error || Number(r.statusCode || 0) >= 400) throw new Error('Texto enviado y registrado; video sin confirmar. Detener sin reintentar.');\n}\nreturn [{ json: { ...t, enviado_por_waha: true, waha_message_id: t.text_message_id, video_message_id: videoId } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1664,
-        176
+        2864,
+        368
       ],
-      "id": "7cf5d581-8cfb-4936-9733-f0562134719d",
-      "name": "CODE_RevisarRespuestaWAHA"
+      "id": "7a40f2aa-1c00-43d6-a4b2-44575c086436",
+      "name": "CODE_RevisarRespuestaWAHA",
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -186,12 +194,13 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        144,
-        160
+        32,
+        368
       ],
-      "id": "85722640-d2a9-476f-8c22-9ada7ec81574",
+      "id": "6ba8d675-fb6a-4984-a5a3-33d985c315c1",
       "name": "PB_LeerCampana",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -201,11 +210,12 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -48,
-        160
+        -160,
+        368
       ],
-      "id": "6621f3a1-847c-4767-8e99-6ff9bf57f851",
-      "name": "PB_LeerLead"
+      "id": "e07070fb-0530-4e99-9681-0c5f915b2b94",
+      "name": "PB_LeerLead",
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -216,11 +226,12 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        320,
-        32
+        208,
+        240
       ],
-      "id": "5904e998-d47d-4f35-92ee-ba7850cd299b",
-      "name": "Merge_LeadCampana"
+      "id": "91c98c74-03a5-44c1-bd85-899683d7a1cb",
+      "name": "Merge_LeadCampana",
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -231,11 +242,12 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        704,
-        48
+        592,
+        256
       ],
-      "id": "dc9dc07f-b70b-408a-bd46-3f04f239f1a7",
-      "name": "Merge_ConMaterial"
+      "id": "ed211520-f56e-4b35-80dd-8e9f4ed31c09",
+      "name": "Merge_ConMaterial",
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -245,58 +257,41 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        528,
-        160
+        416,
+        368
       ],
-      "id": "843b7811-c774-4e67-9f12-675c2da19f1e",
+      "id": "2456cbe2-f7c7-4f28-9b31-caedb58e37d6",
       "name": "PB_LeerMaterial",
       "alwaysOutputData": true,
+      "retryOnFail": false,
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('CODE_NormalizarEnvio').first().json.WAHA_URL }}/api/sendFile",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Api-Key",
-              "value": "={{ $env.WAHA_API_KEY }}"
-            }
-          ]
-        },
+        "url": "={{ $('CODE_NormalizarEnvio').first().json.WAHA_URL }}/api/sendVideo",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "session",
-              "value": "={{ $('CODE_NormalizarEnvio').first().json.session }}"
-            },
-            {
-              "name": "chatId",
-              "value": "={{ $('CODE_ValidarChatWAHA').first().json.chatId }}"
-            },
-            {
-              "name": "file",
-              "value": "={{ {   url: $('CODE_NormalizarEnvio').first().json.POCKETBASE_URL + \"/api/files/\" + $('PB_LeerMaterial').first().json.collectionId + \"/\" + $('PB_LeerMaterial').first().json.id + \"/\" + $('PB_LeerMaterial').first().json.archivo,   filename: $('PB_LeerMaterial').first().json.archivo,   mimetype: \"video/mp4\" } }}"
-            },
-            {
-              "name": "caption",
-              "value": "={{ $('CODE_NormalizarEnvio').first().json.mensaje }}"
-            }
-          ]
-        },
+        "specifyBody": "json",
+        "jsonBody": "={{ { session: $('CODE_NormalizarEnvio').first().json.session, chatId: $('CODE_ValidarChatWAHA').first().json.chatId, file: { url: $('CODE_NormalizarEnvio').first().json.POCKETBASE_URL + '/api/files/' + $('PB_LeerMaterial').first().json.collectionId + '/' + $('PB_LeerMaterial').first().json.id + '/' + $('PB_LeerMaterial').first().json.archivo, filename: $('PB_LeerMaterial').first().json.archivo, mimetype: 'video/mp4' }, caption: '', asNote: false, convert: true } }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1456,
-        -16
+        2640,
+        272
       ],
-      "id": "4fe2b883-41f0-4d96-88c6-08eb45818e13",
-      "name": "HTTP_WAHA_EnviarVideo"
+      "id": "93309847-30b2-4cbc-96d9-28082abbe454",
+      "name": "HTTP_WAHA_EnviarVideo",
+      "retryOnFail": false,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PK6ab_ImjfbsuWTmULJGU",
+          "name": "WAHA local (rotated)"
+        }
+      }
     },
     {
       "parameters": {
@@ -346,11 +341,12 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        864,
-        112
+        2416,
+        368
       ],
-      "id": "f59f9563-65cf-4016-9cc8-b7d7f6ddda37",
-      "name": "IF_TieneVideo"
+      "id": "cf25ecad-df72-496e-b8d4-02bad408da2e",
+      "name": "IF_TieneVideo",
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -390,11 +386,12 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -80,
-        -80
+        -192,
+        128
       ],
-      "id": "c676c84b-279f-5488-879b-a415425de5eb",
-      "name": "IF_TieneMaterial"
+      "id": "7f2c5ef6-d41b-4dea-af0f-adab2c1ec7af",
+      "name": "IF_TieneMaterial",
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -403,15 +400,18 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        160,
-        160
+        48,
+        368
       ],
-      "id": "13fbc303-f8f9-4140-a59e-cdc3f119e29d",
-      "name": "CODE_ValidarEstadoLead"
+      "id": "cc06e736-9038-42d2-953b-7c910dc13d15",
+      "name": "CODE_ValidarEstadoLead",
+      "retryOnFail": false
     },
     {
       "parameters": {
         "url": "={{ $('CODE_NormalizarEnvio').first().json.WAHA_URL }}/api/contacts/check-exists",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -425,25 +425,23 @@
             }
           ]
         },
-        "options": {},
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Api-Key",
-              "value": "={{ $env.WAHA_API_KEY }}"
-            }
-          ]
-        }
+        "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        800,
-        160
+        688,
+        368
       ],
-      "id": "1424772e-98b8-483a-8de4-946196307859",
-      "name": "HTTP_WAHA_ResolverChat"
+      "id": "a5673286-a3ca-4215-b0c8-3251c90dcfe3",
+      "name": "HTTP_WAHA_ResolverChat",
+      "retryOnFail": false,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PK6ab_ImjfbsuWTmULJGU",
+          "name": "WAHA local (rotated)"
+        }
+      }
     },
     {
       "parameters": {
@@ -452,11 +450,12 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        992,
-        160
+        880,
+        368
       ],
-      "id": "92b22a32-df9f-4f8c-8e7b-1ea3920525e7",
-      "name": "CODE_ValidarChatWAHA"
+      "id": "6673dd34-b463-4f01-b6ff-e811efacb7a4",
+      "name": "CODE_ValidarChatWAHA",
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -476,11 +475,12 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1184,
-        160
+        1072,
+        368
       ],
-      "id": "448e6481-5cb1-4910-8ec9-77df305fb751",
-      "name": "PB_MarcarIntentoSinConfirmar"
+      "id": "6033a5c4-e9f5-4e11-b9c9-447a695e95c7",
+      "name": "PB_MarcarIntentoSinConfirmar",
+      "retryOnFail": false
     },
     {
       "parameters": {
@@ -489,27 +489,97 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1376,
-        160
+        1264,
+        368
       ],
-      "id": "99954076-4253-463a-91a8-544cdef791f1",
-      "name": "CODE_ContinuarEnvio"
+      "id": "3bd8ef5f-388a-4950-a9c2-6814b0b34778",
+      "name": "CODE_ContinuarEnvio",
+      "retryOnFail": false
     },
     {
       "parameters": {
-        "jsCode": "const lead = $input.first().json;\nconst request = $('CODE_NormalizarEnvio').first().json;\nconst waha = $('CODE_RevisarRespuestaWAHA').first().json;\nconst followup = $('PB_CrearSeguimiento').first().json;\nif (lead.id !== request.lead_id || lead.estado !== 'enviado_manual' || lead.estado_mensaje !== 'enviado') {\n  throw new Error('PocketBase no confirmo el estado enviado del lead');\n}\nif (followup.lead_id !== request.lead_id || !followup.id || followup.resultado !== 'enviado') {\n  throw new Error('PocketBase no confirmo el seguimiento del envio');\n}\nif (waha.enviado_por_waha !== true || typeof waha.waha_message_id !== 'string' || !waha.waha_message_id.trim()) {\n  throw new Error('WAHA no confirmo el ID del mensaje');\n}\nreturn [{ json: { ok: true, confirmed: true, lead_id: request.lead_id,\n  waha_message_id: waha.waha_message_id, seguimiento_id: followup.id } }];"
+        "jsCode": "const lead = $input.first().json;\nconst request = $('CODE_NormalizarEnvio').first().json;\nconst waha = $('CODE_RevisarRespuestaWAHA').first().json;\nconst followup = $('PB_CrearSeguimiento').first().json;\nif (lead.id !== request.lead_id || lead.estado !== 'enviado_manual' || lead.estado_mensaje !== 'enviado') {\n  throw new Error('PocketBase no confirmo el estado enviado del lead');\n}\nif (followup.lead_id !== request.lead_id || !followup.id || followup.resultado !== 'enviado') {\n  throw new Error('PocketBase no confirmo el seguimiento del envio');\n}\nif (waha.enviado_por_waha !== true || typeof waha.waha_message_id !== 'string' || !waha.waha_message_id.trim()) {\n  throw new Error('WAHA no confirmo el ID del mensaje');\n}\nreturn [{ json: { ok: true, confirmed: true, lead_id: request.lead_id,\n  waha_message_id: waha.waha_message_id, seguimiento_id: followup.id, texto_enviado: true, texto_message_id: waha.text_message_id, video_enviado: !!waha.video_message_id, video_message_id: waha.video_message_id, seguimiento_texto_id: waha.text_followup_id } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2080,
-        176
+        3536,
+        368
       ],
-      "id": "5502efe5-3a97-4591-a8c8-e5059be8c7f8",
-      "name": "CODE_ConfirmarPersistencia"
+      "id": "7d347df0-d4b7-4131-8d1f-745baf84f163",
+      "name": "CODE_ConfirmarPersistencia",
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const normal = $('CODE_ContinuarEnvio').first().json;\nconst r = $input.first().json || {};\nconst data = r._data || {};\nconst candidate = data.id?._serialized || r.id?._serialized || (typeof r.id === 'string' ? r.id : '') || r.messageId || r.message?.id;\nconst textId = typeof candidate === 'string' ? candidate.trim() : '';\nif (!textId || r.error || Number(r.statusCode || 0) >= 400) throw new Error('WAHA no confirmo el texto; detener sin reintentar');\nlet material = {};\nif (normal.tipo_envio === 'texto_material' && normal.material_id) material = $('PB_LeerMaterial').first().json;\nconst requiere_video = normal.tipo_envio === 'texto_material' && material.tipo === 'video' && !!material.archivo;\nreturn [{ json: { ...normal, tipo: material.tipo || '', archivo: material.archivo || '', text_message_id: textId, requiere_video } }];"
+      },
+      "id": "5d77491a-f703-47d3-a77b-6e42775f6fec",
+      "name": "CODE_ValidarTextoWAHA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1744,
+        368
+      ],
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8091/api/collections/seguimientos/records",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "lead_id",
+              "value": "={{ $('CODE_NormalizarEnvio').first().json.lead_id }}"
+            },
+            {
+              "name": "tipo",
+              "value": "envio"
+            },
+            {
+              "name": "resultado",
+              "value": "enviado"
+            },
+            {
+              "name": "nota",
+              "value": "={{ 'Texto confirmado por WAHA. ID: ' + $('CODE_ValidarTextoWAHA').first().json.text_message_id + ($('CODE_ValidarTextoWAHA').first().json.requiere_video ? '. Video pendiente; no reintentar el texto.' : '. Sin video requerido.') }}"
+            },
+            {
+              "name": "fecha",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1968,
+        368
+      ],
+      "id": "fddbe05d-751c-4fc6-bb21-269a7023e3e5",
+      "name": "PB_RegistrarTextoConfirmado",
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const t = $('CODE_ValidarTextoWAHA').first().json;\nconst saved = $input.first().json;\nif (!saved.id || saved.lead_id !== t.lead_id || saved.resultado !== 'enviado') throw new Error('Texto enviado, pero seguimiento no confirmado; detener sin reintentar');\nreturn [{ json: { ...t, text_followup_id: saved.id } }];"
+      },
+      "id": "1589517e-faf1-4a93-bfc2-ff577c45b78c",
+      "name": "CODE_ContinuarTrasTexto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2192,
+        368
+      ],
+      "retryOnFail": false
     }
   ],
-  "pinData": {},
   "connections": {
     "Webhook_EnviarLeadManual": {
       "main": [
@@ -542,7 +612,7 @@
       "main": [
         [
           {
-            "node": "CODE_RevisarRespuestaWAHA",
+            "node": "CODE_ValidarTextoWAHA",
             "type": "main",
             "index": 0
           }
@@ -619,7 +689,7 @@
       "main": [
         [
           {
-            "node": "IF_TieneVideo",
+            "node": "HTTP_WAHA_EnviarMensaje",
             "type": "main",
             "index": 0
           }
@@ -659,7 +729,7 @@
         ],
         [
           {
-            "node": "HTTP_WAHA_EnviarMensaje",
+            "node": "CODE_RevisarRespuestaWAHA",
             "type": "main",
             "index": 0
           }
@@ -754,18 +824,48 @@
           }
         ]
       ]
+    },
+    "CODE_ValidarTextoWAHA": {
+      "main": [
+        [
+          {
+            "node": "PB_RegistrarTextoConfirmado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PB_RegistrarTextoConfirmado": {
+      "main": [
+        [
+          {
+            "node": "CODE_ContinuarTrasTexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_ContinuarTrasTexto": {
+      "main": [
+        [
+          {
+            "node": "IF_TieneVideo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "8c52f176-b5ed-46f9-9ba0-4cfdf5bb8b35",
-  "meta": {
-    "instanceId": "bb0f0382383d4f643708f73f17000961d8224166b1cf2ba0ee3d12dbba08515b"
-  },
-  "id": "MQHIdKc-3RaMMnK5wgTCb",
-  "tags": []
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "versionId": "7123fc2b-1765-4b9f-a5bd-f42e43be1d3b"
 }
