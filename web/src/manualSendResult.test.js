@@ -2,7 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { confirmManualSend, manualSendWarningForLead } from './manualSendResult.js'
 
-const response = body => ({ ok: true, json: async () => body })
+const response = body => ({
+  ok: true, status: 200,
+  headers: { get: () => 'application/json; charset=utf-8' },
+  text: async () => JSON.stringify(body),
+})
 const confirmedText = {
   ok: true, confirmed: true, lead_id: 'test-lead',
   waha_message_id: 'text-message', texto_enviado: true,
@@ -42,8 +46,15 @@ test('rejects incomplete response before reading PocketBase', async () => {
 
 test('rejects an empty HTTP 200 body as invalid JSON', async () => {
   await assert.rejects(
-    confirmManualSend({ ok: true, json: async () => { throw new Error('empty') } }, 'test-lead', savedLead),
-    /JSON/,
+    confirmManualSend({ ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => '' }, 'test-lead', savedLead),
+    /HTTP 200.*cuerpo vacío/,
+  )
+})
+
+test('surfaces a structured workflow failure and execution ID', async () => {
+  await assert.rejects(
+    confirmManualSend({ ...response({ ok: false, error: { message: 'Falta telefono' }, execution_id: '14270' }), ok: false, status: 422 }, 'test-lead', savedLead),
+    /HTTP 422: Falta telefono.*14270/,
   )
 })
 

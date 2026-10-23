@@ -33,7 +33,8 @@
       ],
       "id": "937ca7d0-b9ec-4ce2-804d-2a25a8c0884d",
       "name": "CODE_NormalizarEnvio",
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -74,7 +75,8 @@
           "id": "PK6ab_ImjfbsuWTmULJGU",
           "name": "WAHA local (rotated)"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -111,7 +113,8 @@
       ],
       "id": "a1267d0b-6ec7-407a-85ee-a570acbaa639",
       "name": "PB_MarcarLeadEnviado",
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -170,7 +173,8 @@
       ],
       "id": "d38e35f8-6b5e-4c4d-acac-18db6042e999",
       "name": "PB_CrearSeguimiento",
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -184,7 +188,8 @@
       ],
       "id": "7a40f2aa-1c00-43d6-a4b2-44575c086436",
       "name": "CODE_RevisarRespuestaWAHA",
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -200,7 +205,8 @@
       "id": "6ba8d675-fb6a-4984-a5a3-33d985c315c1",
       "name": "PB_LeerCampana",
       "alwaysOutputData": true,
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -215,7 +221,8 @@
       ],
       "id": "e07070fb-0530-4e99-9681-0c5f915b2b94",
       "name": "PB_LeerLead",
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -264,7 +271,7 @@
       "name": "PB_LeerMaterial",
       "alwaysOutputData": true,
       "retryOnFail": false,
-      "onError": "continueRegularOutput"
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -291,7 +298,8 @@
           "id": "PK6ab_ImjfbsuWTmULJGU",
           "name": "WAHA local (rotated)"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -405,7 +413,8 @@
       ],
       "id": "cc06e736-9038-42d2-953b-7c910dc13d15",
       "name": "CODE_ValidarEstadoLead",
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -441,7 +450,8 @@
           "id": "PK6ab_ImjfbsuWTmULJGU",
           "name": "WAHA local (rotated)"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -455,7 +465,8 @@
       ],
       "id": "6673dd34-b463-4f01-b6ff-e811efacb7a4",
       "name": "CODE_ValidarChatWAHA",
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -480,7 +491,8 @@
       ],
       "id": "6033a5c4-e9f5-4e11-b9c9-447a695e95c7",
       "name": "PB_MarcarIntentoSinConfirmar",
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -494,7 +506,8 @@
       ],
       "id": "3bd8ef5f-388a-4950-a9c2-6814b0b34778",
       "name": "CODE_ContinuarEnvio",
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -508,7 +521,8 @@
       ],
       "id": "7d347df0-d4b7-4131-8d1f-745baf84f163",
       "name": "CODE_ConfirmarPersistencia",
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -522,7 +536,8 @@
         1744,
         368
       ],
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -563,7 +578,8 @@
       ],
       "id": "fddbe05d-751c-4fc6-bb21-269a7023e3e5",
       "name": "PB_RegistrarTextoConfirmado",
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -577,7 +593,52 @@
         2192,
         368
       ],
-      "retryOnFail": false
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const normal = $('CODE_ContinuarEnvio').first().json;\nconst material = $('PB_LeerMaterial').first().json;\nif (normal.tipo_envio !== 'texto_material' || !normal.material_id ||\n    material.id !== normal.material_id || material.tipo !== 'video' || !material.archivo) {\n  throw new Error('Material de video requerido ausente o incompatible; se detuvo antes de enviar texto');\n}\nreturn [{ json: { ...normal, tipo: material.tipo, archivo: material.archivo } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        80
+      ],
+      "id": "e75bde3c-86b4-4536-8f5f-0fbb81a78da1",
+      "name": "CODE_ValidarMaterialAntesDeTexto",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $input.first().json || {};\nconst err = source.error || {};\nconst raw = String((typeof err === 'string' ? err : err.message) || source.message || 'Workflow error');\nconst safe = raw.replace(/https?:\\/\\/\\S+/g, '[URL]').replace(/\\b\\d{10,15}\\b/g, '[number]').slice(0, 500);\nconst req = $('Webhook_EnviarLeadManual').first().json;\nconst body = req.body || req;\nconst normalized = $('CODE_NormalizarEnvio').isExecuted ? $('CODE_NormalizarEnvio').first().json : {};\nconst leadId = normalized.lead_id || body.lead_id || '';\nconst attempt = $('PB_MarcarIntentoSinConfirmar').isExecuted;\nconst textAttempt = $('HTTP_WAHA_EnviarMensaje').isExecuted;\nconst videoAttempt = $('HTTP_WAHA_EnviarVideo').isExecuted;\nreturn [{ json: {\n  ok: false, confirmed: false, lead_id: leadId,\n  retry_blocked: attempt || textAttempt || videoAttempt,\n  phase: videoAttempt ? 'video' : textAttempt ? 'texto' : attempt ? 'preparacion' : 'validacion',\n  error: { code: 'WORKFLOW_FAILED', message: safe },\n  execution_id: $execution.id,\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        800
+      ],
+      "id": "ac4e7b8d-37e6-4fa5-9030-85d7fad43b26",
+      "name": "CODE_FormatearErrorEnvio"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.retry_blocked ? 409 : 422 }}"
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1850,
+        800
+      ],
+      "id": "00dc2542-4505-4f09-bd00-b9a21338963f",
+      "name": "RESP_ErrorEnvio"
     }
   ],
   "connections": {
@@ -605,6 +666,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -613,6 +681,13 @@
         [
           {
             "node": "CODE_ValidarTextoWAHA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
             "type": "main",
             "index": 0
           }
@@ -627,6 +702,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -635,6 +717,13 @@
         [
           {
             "node": "PB_MarcarLeadEnviado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
             "type": "main",
             "index": 0
           }
@@ -649,6 +738,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -660,6 +756,13 @@
             "type": "main",
             "index": 1
           }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -668,6 +771,13 @@
         [
           {
             "node": "CODE_ValidarEstadoLead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
             "type": "main",
             "index": 0
           }
@@ -689,7 +799,7 @@
       "main": [
         [
           {
-            "node": "HTTP_WAHA_EnviarMensaje",
+            "node": "CODE_ValidarMaterialAntesDeTexto",
             "type": "main",
             "index": 0
           }
@@ -704,6 +814,13 @@
             "type": "main",
             "index": 1
           }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -712,6 +829,13 @@
         [
           {
             "node": "CODE_RevisarRespuestaWAHA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
             "type": "main",
             "index": 0
           }
@@ -767,6 +891,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -775,6 +906,13 @@
         [
           {
             "node": "CODE_ValidarChatWAHA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
             "type": "main",
             "index": 0
           }
@@ -789,6 +927,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -797,6 +942,13 @@
         [
           {
             "node": "CODE_ContinuarEnvio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
             "type": "main",
             "index": 0
           }
@@ -811,6 +963,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -819,6 +978,13 @@
         [
           {
             "node": "RESP_EnviarLeadManual",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
             "type": "main",
             "index": 0
           }
@@ -833,6 +999,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -844,6 +1017,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -852,6 +1032,42 @@
         [
           {
             "node": "IF_TieneVideo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_ValidarMaterialAntesDeTexto": {
+      "main": [
+        [
+          {
+            "node": "HTTP_WAHA_EnviarMensaje",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CODE_FormatearErrorEnvio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE_FormatearErrorEnvio": {
+      "main": [
+        [
+          {
+            "node": "RESP_ErrorEnvio",
             "type": "main",
             "index": 0
           }

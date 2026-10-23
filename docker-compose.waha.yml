@@ -1,6 +1,6 @@
 services:
   waha:
-    image: devlikeapro/waha:latest
+    image: devlikeapro/waha:chrome-2026.9.1
     ports:
       - "3001:3000"
     env_file:

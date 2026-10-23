@@ -1,13 +1,20 @@
 export async function confirmManualSend(response, leadId, loadLead) {
-  if (!response.ok) {
-    throw new Error(`n8n/WAHA devolvió HTTP ${response.status}. El resultado requiere revisión.`)
+  let result
+  const contentType = response.headers?.get?.('content-type') || 'desconocido'
+  const body = await response.text()
+  try {
+    result = JSON.parse(body)
+  } catch {
+    throw new Error(`n8n devolvió HTTP ${response.status}, Content-Type ${contentType}, ` +
+      `${body.length === 0 ? 'cuerpo vacío' : 'cuerpo no JSON'}. Revisa la ejecución antes de reenviar.`)
   }
 
-  let result
-  try {
-    result = await response.json()
-  } catch {
-    throw new Error('n8n respondió con un cuerpo que no es JSON válido.')
+  if (!response.ok || result?.ok === false) {
+    const detail = typeof result?.error?.message === 'string'
+      ? result.error.message
+      : 'El resultado requiere revisión.'
+    const execution = result?.execution_id ? ` Ejecución ${result.execution_id}.` : ''
+    throw new Error(`n8n devolvió HTTP ${response.status}: ${detail}${execution}`)
   }
 
   const hasId = value => typeof value === 'string' && value.trim().length > 0
