@@ -14,7 +14,12 @@ export async function confirmManualSend(response, leadId, loadLead) {
       ? result.error.message
       : 'El resultado requiere revisión.'
     const execution = result?.execution_id ? ` Ejecución ${result.execution_id}.` : ''
-    throw new Error(`n8n devolvió HTTP ${response.status}: ${detail}${execution}`)
+    const failure = new Error(`n8n devolvió HTTP ${response.status}: ${detail}${execution}`)
+    failure.retryAllowed = response.status === 422 && result?.ok === false &&
+      result?.confirmed === false && result?.lead_id === leadId &&
+      result?.retry_blocked === false && result?.phase === 'validacion' &&
+      typeof result?.execution_id === 'string' && result.execution_id.length > 0
+    throw failure
   }
 
   const hasId = value => typeof value === 'string' && value.trim().length > 0

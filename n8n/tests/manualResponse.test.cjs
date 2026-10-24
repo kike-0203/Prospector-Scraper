@@ -51,3 +51,21 @@ test('requires a separate video ID persisted in the final followup', () => {
     lead, followup: { ...followup, nota: 'Video ID: video-message' }, textFollowup, waha: video,
   }).video_message_id, 'video-message')
 })
+
+test('formats an HTTP failure before send without a normalizer output', () => {
+  const input = { first: () => ({ json: {
+    lead_id: 'test-lead', error: { message: '422 - session FAILED' },
+  } }) }
+  const lookup = name => ({
+    isExecuted: name === 'CODE_NormalizarEnvio',
+    first: () => name === 'Webhook_EnviarLeadManual'
+      ? { json: { body: { lead_id: 'test-lead' } } }
+      : undefined,
+  })
+  const result = new Function('$input', '$', '$execution',
+    nodes.CODE_FormatearErrorEnvio.parameters.jsCode)(input, lookup, { id: 'test-execution' })[0].json
+  assert.equal(result.lead_id, 'test-lead')
+  assert.equal(result.retry_blocked, false)
+  assert.equal(result.phase, 'validacion')
+  assert.match(result.error.message, /session FAILED/)
+})

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import PocketBase from 'pocketbase'
 import { confirmManualSend, manualSendWarningForLead } from './manualSendResult'
+import { reconcileLocalAttempt } from './reconcileLocalAttempt'
 import './App.css'
 
 const PB_URL = import.meta.env.VITE_PB_URL;
@@ -249,9 +250,27 @@ function App() {
     const detail = error.name === 'AbortError'
       ? 'La espera superó 45 segundos. Esto no demuestra que el mensaje haya fallado.'
       : error.message
-    const warning = `${detail} No vuelvas a pulsar Enviar hasta revisar la ejecución y el chat.`
-    setSendWarning({ leadId: attemptedLead.id, message: warning })
-    log(`❌ ${warning}`)
+    let safeRetry = false
+    if (error.retryAllowed === true) {
+      try {
+        const current = await pb.collection('leads').getOne(attemptedLead.id)
+        safeRetry = current.estado === 'nuevo' && current.estado_mensaje === 'generado'
+        if (safeRetry) {
+          localStorage.removeItem(attemptKey)
+          setLead(current)
+        }
+      } catch {
+        // A failed state check leaves the attempt blocked.
+      }
+    }
+    if (safeRetry) {
+      setSendWarning({ leadId: attemptedLead.id, message: '' })
+      log(`⚠️ ${detail} No hubo envío; puedes intentarlo de nuevo.`)
+    } else {
+      const warning = `${detail} No vuelvas a pulsar Enviar hasta revisar la ejecución y el chat.`
+      setSendWarning({ leadId: attemptedLead.id, message: warning })
+      log(`❌ ${warning}`)
+    }
   } finally {
     clearTimeout(timeout)
     sendInProgress.current = false
@@ -439,6 +458,38 @@ function App() {
     cargarCampanas()
   }
   }, [tab])
+
+  useEffect(() => {
+    if (!lead?.id) return
+    let active = true
+    let checking = false
+    const check = async () => {
+      if (checking || !localStorage.getItem(`prospector-send:${lead.id}`)) return
+      checking = true
+      try {
+        const cleared = await reconcileLocalAttempt({
+          lead,
+          storage: localStorage,
+          getLead: id => pb.collection('leads').getOne(id),
+          getFollowups: id => pb.collection('seguimientos').getList(1, 1, {
+            filter: `lead_id="${id}"`,
+          }),
+          fetchManifest: () => fetch('/reconciled-attempts.local.json', { cache: 'no-store' }),
+        })
+        if (active && cleared) {
+          setSendWarning({ leadId: lead.id, message: '' })
+          log('Intento sin envio reconciliado; este contacto vuelve a estar disponible.')
+        }
+      } catch {
+        // Keep the attempt blocked when reconciliation cannot be verified.
+      } finally {
+        checking = false
+      }
+    }
+    check()
+    const timer = setInterval(check, 10000)
+    return () => { active = false; clearInterval(timer) }
+  }, [lead])
 
   return (
     <main className="app">

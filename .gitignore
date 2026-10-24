@@ -4,6 +4,7 @@ launcher.local.ps1
 web/.env
 web/node_modules/
 web/dist/
+web/public/reconciled-attempts.local.json
 web/src/debug-env.js
 *.log
 sessions/

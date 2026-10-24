@@ -58,6 +58,28 @@ test('surfaces a structured workflow failure and execution ID', async () => {
   )
 })
 
+test('allows retry only for a confirmed failure before any send', async () => {
+  const safe = {
+    ok: false, confirmed: false, lead_id: 'test-lead',
+    retry_blocked: false, phase: 'validacion', execution_id: '14296',
+    error: { message: 'WAHA session unavailable before send' },
+  }
+  await assert.rejects(
+    confirmManualSend({ ...response(safe), ok: false, status: 422 }, 'test-lead', savedLead),
+    error => error.retryAllowed === true,
+  )
+  for (const unsafe of [
+    { ...safe, retry_blocked: true },
+    { ...safe, lead_id: 'another-lead' },
+    { ...safe, phase: 'texto' },
+  ]) {
+    await assert.rejects(
+      confirmManualSend({ ...response(unsafe), ok: false, status: 422 }, 'test-lead', savedLead),
+      error => error.retryAllowed === false,
+    )
+  }
+})
+
 test('rejects when the lead was not persisted as sent', async () => {
   await assert.rejects(
     confirmManualSend(response(confirmedText), 'test-lead', async () => ({
