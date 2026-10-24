@@ -98,6 +98,33 @@ function Test-ReactService {
   }
 }
 
+function Test-ManualSendWebhook {
+  # Invalid input stops in CODE_NormalizarEnvio, before any WAHA request.
+  try {
+    $url = "http://127.0.0.1:$N8nPort/webhook/enviar-lead-manual"
+    $request = [System.Net.HttpWebRequest]::Create($url)
+    $request.Method = 'POST'
+    $request.ContentType = 'application/json'
+    $request.Headers.Add('Origin', "http://localhost:$ReactPort")
+    $payload = [System.Text.Encoding]::UTF8.GetBytes('{"lead_id":"diagnostic-no-send"}')
+    $request.ContentLength = $payload.Length
+    $stream = $request.GetRequestStream()
+    try { $stream.Write($payload, 0, $payload.Length) } finally { $stream.Dispose() }
+    try { $response = $request.GetResponse() }
+    catch [System.Net.WebException] { $response = $_.Exception.Response }
+    if (!$response) { return $false }
+    try {
+      $status = [int]$response.StatusCode
+      $reader = New-Object System.IO.StreamReader($response.GetResponseStream())
+      try { $body = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
+      return ($status -eq 422 -and $body.ok -eq $false -and
+        $body.lead_id -eq 'diagnostic-no-send' -and $body.retry_blocked -eq $false)
+    } finally { $response.Dispose() }
+  } catch {
+    return $false
+  }
+}
+
 function Wait-Port([int]$Port, [int]$Seconds = 40) {
   for ($i = 0; $i -lt $Seconds; $i++) {
     if (Test-Port $Port) { return $true }
@@ -468,6 +495,7 @@ function Show-Status {
 
   Status-Line 'Docker Desktop:' $docker
   Status-Line 'n8n:' (($n8nState -eq 'running') -and (Test-LocalHttp $N8nPort '/healthz')) $n8nState
+  Status-Line 'Webhook envio:' (Test-ManualSendWebhook) 'diagnostico sin envio'
   Status-Line 'WAHA:' (($wahaState -eq 'running') -and (Test-Port $WahaPort)) "$wahaState; API protegida"
   Status-Line 'PocketBase 8091:' (Test-PocketBaseService)
   Status-Line 'React 5173:' (Test-ReactService)
@@ -488,6 +516,10 @@ function Start-All {
   if (!$wahaOk) { Write-Host '[ERROR] WAHA no esta activo.' -ForegroundColor Red; return $false }
   if (!(Test-LocalHttp $N8nPort '/healthz')) {
     Write-Host '[ERROR] n8n no responde en /healthz.' -ForegroundColor Red
+    return $false
+  }
+  if (!(Test-ManualSendWebhook)) {
+    Write-Host '[ERROR] El webhook de envio no responde con JSON de validacion; no se puede enviar.' -ForegroundColor Red
     return $false
   }
   if (!(Test-Port $WahaPort)) {
