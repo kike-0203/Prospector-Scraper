@@ -214,7 +214,7 @@ function App() {
  }
 
  const enviar = async () => {
-  if (!lead || sendInProgress.current || lead.estado === 'envio_no_confirmado' ||
+  if (!lead || sendInProgress.current || lead.estado !== 'nuevo' || lead.estado_mensaje !== 'generado' ||
       localStorage.getItem(`prospector-send:${lead.id}`)) return
   const attemptedLead = lead
   sendInProgress.current = true

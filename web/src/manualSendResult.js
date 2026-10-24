@@ -47,6 +47,9 @@ export async function confirmManualSend(response, leadId, loadLead) {
 
 export function manualSendWarningForLead(lead, warning, hasPendingAttempt) {
   if (!lead) return ''
+  if (lead.estado === 'enviado_manual' && lead.estado_mensaje === 'enviado') {
+    return 'Este contacto ya fue enviado.'
+  }
   if (warning.leadId === lead.id && warning.message) return warning.message
   if (lead.estado === 'envio_no_confirmado' || hasPendingAttempt) {
     return 'Este contacto tiene un intento sin confirmar. Revisa n8n y el chat antes de cualquier nuevo envío.'

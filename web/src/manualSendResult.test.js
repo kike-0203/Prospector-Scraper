@@ -94,4 +94,5 @@ test('keeps an old attempt warning off the next lead', () => {
   assert.equal(manualSendWarningForLead({ id: 'first-lead' }, warning, true), warning.message)
   assert.equal(manualSendWarningForLead({ id: 'next-lead', estado: 'nuevo' }, warning, false), '')
   assert.match(manualSendWarningForLead({ id: 'next-lead', estado: 'envio_no_confirmado' }, warning, false), /intento sin confirmar/)
+  assert.match(manualSendWarningForLead({ id: 'first-lead', estado: 'enviado_manual', estado_mensaje: 'enviado' }, warning, true), /ya fue enviado/)
 })
