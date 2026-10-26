@@ -37,6 +37,7 @@ $N8nPort         = 5678
 $WahaPort        = 3001
 $N8nContainer    = 'n8n'
 $WahaContainer   = 'waha-test-waha-1'
+$WahaSessionName = 'prospector-scraper'
 $LocalConfig     = Join-Path $ProjectRoot 'launcher.local.ps1'
 if (Test-Path -LiteralPath $LocalConfig) { . $LocalConfig }
 
@@ -169,6 +170,21 @@ function Get-ContainerState([string]$Name) {
     return (docker inspect -f '{{.State.Status}}' $Name 2>$null).Trim()
   } catch {
     return ''
+  }
+}
+
+function Get-WahaSessionStatus {
+  try {
+    $container = (docker inspect $WahaContainer 2>$null | ConvertFrom-Json)[0]
+    $entry = $container.Config.Env | Where-Object { $_.StartsWith('WAHA_API_KEY=') } | Select-Object -First 1
+    if (!$entry) { return 'UNKNOWN' }
+    $apiKey = $entry.Substring('WAHA_API_KEY='.Length)
+    $session = [Uri]::EscapeDataString($WahaSessionName)
+    $result = Invoke-RestMethod -Uri "http://127.0.0.1:$WahaPort/api/sessions/$session" `
+      -Headers @{ 'X-Api-Key' = $apiKey } -TimeoutSec 5
+    return [string]$result.status
+  } catch {
+    return 'UNKNOWN'
   }
 }
 
@@ -483,11 +499,12 @@ function Show-Status {
   $docker = Test-DockerReady
   $n8nState = Get-ContainerState $N8nContainer
   $wahaState = Get-ContainerState $WahaContainer
+  $wahaSessionStatus = if ($wahaState -eq 'running') { Get-WahaSessionStatus } else { 'STOPPED' }
   $reactUrl = Get-ActiveTunnelUrl $ReactPort $ReactUrlFile
   $pbUrl = Get-ActiveTunnelUrl $PocketBasePort $PocketBaseUrlFile
 
-  function Status-Line([string]$Name, [bool]$Ok, [string]$Detail = '') {
-    $text = if ($Ok) { 'ACTIVO' } else { 'APAGADO' }
+  function Status-Line([string]$Name, [bool]$Ok, [string]$Detail = '', [string]$FailedText = 'APAGADO') {
+    $text = if ($Ok) { 'ACTIVO' } else { $FailedText }
     $color = if ($Ok) { 'Green' } else { 'Red' }
     Write-Host ($Name.PadRight(24) + $text) -ForegroundColor $color
     if ($Detail) { Write-Host (' '.PadRight(24) + $Detail) -ForegroundColor DarkGray }
@@ -496,7 +513,8 @@ function Show-Status {
   Status-Line 'Docker Desktop:' $docker
   Status-Line 'n8n:' (($n8nState -eq 'running') -and (Test-LocalHttp $N8nPort '/healthz')) $n8nState
   Status-Line 'Webhook envio:' (Test-ManualSendWebhook) 'diagnostico sin envio'
-  Status-Line 'WAHA:' (($wahaState -eq 'running') -and (Test-Port $WahaPort)) "$wahaState; API protegida"
+  Status-Line 'WAHA:' (($wahaState -eq 'running') -and ($wahaSessionStatus -eq 'WORKING')) `
+    "$wahaState; session=$wahaSessionStatus" 'NO LISTO'
   Status-Line 'PocketBase 8091:' (Test-PocketBaseService)
   Status-Line 'React 5173:' (Test-ReactService)
   Status-Line 'Cloudflare React:' ([bool]$reactUrl) $reactUrl
@@ -526,6 +544,7 @@ function Start-All {
     Write-Host '[ERROR] WAHA no tiene abierto el puerto 3001.' -ForegroundColor Red
     return $false
   }
+  $wahaSessionStatus = Get-WahaSessionStatus
 
   $pbOk = Ensure-PocketBase
   $reactOk = Start-React
@@ -556,9 +575,12 @@ function Start-All {
   }
 
   Write-Host ''
-  Write-Host '========================================' -ForegroundColor Green
-  Write-Host 'PROYECTO LISTO' -ForegroundColor Green
-  Write-Host '========================================' -ForegroundColor Green
+  $ready = $wahaSessionStatus -eq 'WORKING'
+  $readinessColor = if ($ready) { 'Green' } else { 'Yellow' }
+  Write-Host '========================================' -ForegroundColor $readinessColor
+  if ($ready) { Write-Host 'PROYECTO LISTO' -ForegroundColor Green }
+  else { Write-Host "SERVICIOS ACTIVOS; WAHA $wahaSessionStatus" -ForegroundColor Yellow }
+  Write-Host '========================================' -ForegroundColor $readinessColor
   Write-Host ''
   Write-Host 'React local:' -ForegroundColor Cyan
   Write-Host 'http://localhost:5173'
@@ -582,7 +604,7 @@ function Start-All {
   Write-Host ''
   Write-Host 'Usa la URL de React celular para abrir la web desde el telefono.' -ForegroundColor Yellow
   Write-Host ''
-  return $true
+  return $ready
 }
 
 function Start-AllOnce {
