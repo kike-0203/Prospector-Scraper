@@ -4,6 +4,7 @@ import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { buildDemoSubscription, saveDemoSubscription, findDemoLifecycle, writeDemoLifecycle } from './pocketbase-adapter.mjs'
 import { createDemoLifecycle, applyDemoEvent } from './lifecycle.mjs'
+import { verifyMpWebhook } from './mercadopago-webhook.mjs'
 
 const host = '127.0.0.1'
 const port = Number(process.env.BILLING_DEMO_PORT || 8787)
@@ -39,6 +40,7 @@ const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end() }
   const createPath = req.url === '/api/billing/demo/subscriptions'
   const eventPath = req.url === '/api/billing/demo/events'
+  const localWebhookPath = req.url?.startsWith('/api/billing/demo/mp-webhook?')
   const statePath = req.url?.startsWith('/api/billing/demo/state/')
   if (req.method === 'GET' && statePath) {
     const id = req.url.slice('/api/billing/demo/state/'.length)
@@ -49,7 +51,7 @@ const server = createServer(async (req, res) => {
       return respond(res, 200, state)
     } catch { return respond(res, 503, { error: 'Laboratorio PocketBase no disponible.' }) }
   }
-  if ((!createPath && !eventPath) || req.method !== 'POST') {
+  if ((!createPath && !eventPath && !localWebhookPath) || req.method !== 'POST') {
     return respond(res, 404, { error: 'Ruta no disponible.' })
   }
   let size = 0; const chunks = []
@@ -58,6 +60,26 @@ const server = createServer(async (req, res) => {
       size += chunk.length
       if (size > maxBody) return respond(res, 413, { error: 'Solicitud demasiado grande.' })
       chunks.push(chunk)
+    }
+    if (localWebhookPath) {
+      // Endpoint local de laboratorio: no procesa pagos ni activa servicios.
+      const secret = process.env.BILLING_DEMO_MP_WEBHOOK_SECRET
+      if (!secret) return respond(res, 503, { error: 'Secreto de demostración no configurado.' })
+      const resourceId = new URL(req.url, 'http://localhost').searchParams.get('data.id')
+      const accepted = verifyMpWebhook({
+        secret, signature: req.headers['x-signature'],
+        requestId: req.headers['x-request-id'], dataId: resourceId,
+      })
+      if (!accepted) return respond(res, 401, { error: 'Firma inválida.' })
+      let notification
+      try { notification = JSON.parse(Buffer.concat(chunks).toString('utf8')) } catch {
+        return respond(res, 400, { error: 'Notificación JSON inválida.' })
+      }
+      if (String(notification?.data?.id || '').toLowerCase() !== String(resourceId || '').toLowerCase() ||
+          !['payment', 'subscription_preapproval', 'subscription_authorized_payment'].includes(notification.type)) {
+        return respond(res, 422, { error: 'Notificación inconsistente.' })
+      }
+      return respond(res, 202, { accepted_for_test: true, charge_confirmed: false, service_activated: false })
     }
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
     if (eventPath) {
