@@ -106,3 +106,40 @@ test('API local simula renovación, duplicados y cancelación sin cargos', async
   assert.equal(final.paidCycles, 3)
   assert.equal(final.events.length, 5)
 })
+
+test('webhook local verifica firma y nunca confirma un cargo', async t => {
+  const { signFixture } = await import('./mercadopago-webhook.mjs')
+  const port = 22000 + Math.floor(Math.random() * 1000)
+  const secret = 'only-for-local-fixtures-not-an-account-key'
+  const child = spawn(process.execPath, [path.join(root, 'billing-demo/server.mjs')], {
+    env: { ...process.env, BILLING_DEMO_PORT: String(port), BILLING_DEMO_PB_WRITE: '0', BILLING_DEMO_MP_WEBHOOK_SECRET: secret },
+    stdio: 'ignore',
+  })
+  t.after(() => child.kill())
+  const base = 'http://127.0.0.1:' + port
+  let ready = false
+  for (let i = 0; i < 35; i++) {
+    try { if ((await fetch(base + '/api/health')).status === 404) { ready = true; break } } catch {}
+    await delay(100)
+  }
+  assert.equal(ready, true)
+  const ts = String(Math.floor(Date.now() / 1000))
+  const dataId = 'testpayment123'
+  const requestId = 'test-request-123'
+  const body = JSON.stringify({ type: 'payment', data: { id: dataId }, live_mode: false })
+  const signature = 'ts=' + ts + ',v1=' + signFixture({ secret, dataId, requestId, ts })
+  const request = async (sig, data = body) => {
+    const res = await fetch(base + '/api/billing/demo/mp-webhook?data.id=' + dataId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-request-id': requestId, 'x-signature': sig },
+      body: data,
+    })
+    return { status: res.status, body: await res.json() }
+  }
+  const valid = await request(signature)
+  assert.equal(valid.status, 202)
+  assert.equal(valid.body.charge_confirmed, false)
+  assert.equal(valid.body.service_activated, false)
+  assert.equal((await request('ts=' + ts + ',v1=' + 'f'.repeat(64))).status, 401)
+  assert.equal((await request(signature, JSON.stringify({ type: 'payment', data: { id: 'other' } }))).status, 422)
+})
