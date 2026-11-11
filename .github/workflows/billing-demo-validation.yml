@@ -24,7 +24,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install frontend dependencies
         working-directory: web
-        run: npm ci
+        run: npm install --no-save --package-lock=false
       - name: Build frontend production bundle
         working-directory: web
         run: npm run build
