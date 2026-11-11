@@ -30,3 +30,13 @@ jobs:
         run: npm run build
       - name: Test demo billing API and frontend route
         run: node --test billing-demo/*.test.mjs
+      - name: Download isolated PocketBase v0.38.0 for integration test
+        run: |
+          curl -fLSs --retry 3 -o /tmp/pocketbase.zip https://github.com/pocketbase/pocketbase/releases/download/v0.38.0/pocketbase_0.38.0_linux_amd64.zip
+          mkdir -p /tmp/pocketbase-lab
+          unzip -q /tmp/pocketbase.zip pocketbase -d /tmp/pocketbase-lab
+          chmod +x /tmp/pocketbase-lab/pocketbase
+      - name: Run real PocketBase persistence and restart integration test
+        env:
+          PB_BINARY: /tmp/pocketbase-lab/pocketbase
+        run: node --test billing-demo/pocketbase.integration.test.mjs
