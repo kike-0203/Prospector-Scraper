@@ -2,13 +2,22 @@
 // Ejecutar únicamente en un entorno de desarrollo local.
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
-import { buildDemoSubscription, saveDemoSubscription } from './pocketbase-adapter.mjs'
+import { buildDemoSubscription, saveDemoSubscription, findDemoLifecycle, writeDemoLifecycle } from './pocketbase-adapter.mjs'
 import { createDemoLifecycle, applyDemoEvent } from './lifecycle.mjs'
 
 const host = '127.0.0.1'
 const port = Number(process.env.BILLING_DEMO_PORT || 8787)
 const records = new Map()
 const lifecycles = new Map()
+const locks = new Map()
+function withIdLock(id, work) {
+  const last = locks.get(id) || Promise.resolve()
+  const next = last.catch(() => {}).then(work)
+  locks.set(id, next)
+  next.finally(() => { if (locks.get(id) === next) locks.delete(id) }).catch(() => {})
+  return next
+}
+const pbConfig = () => ({ url: process.env.BILLING_DEMO_PB_URL, token: process.env.BILLING_DEMO_PB_TOKEN })
 const pbReady = process.env.BILLING_DEMO_PB_WRITE === '1' && Boolean(process.env.BILLING_DEMO_PB_URL && process.env.BILLING_DEMO_PB_TOKEN)
 if (process.env.BILLING_DEMO_PB_WRITE === '1' && !pbReady) throw new Error('Configuración incompleta de PocketBase de laboratorio')
 const maxBody = 12_000
@@ -33,8 +42,12 @@ const server = createServer(async (req, res) => {
   const statePath = req.url?.startsWith('/api/billing/demo/state/')
   if (req.method === 'GET' && statePath) {
     const id = req.url.slice('/api/billing/demo/state/'.length)
-    if (!/^[a-f0-9-]{36}$/.test(id) || !lifecycles.has(id)) return respond(res, 404, { error: 'Simulación no encontrada.' })
-    return respond(res, 200, lifecycles.get(id))
+    if (!/^[a-f0-9-]{36}$/.test(id)) return respond(res, 404, { error: 'Simulación no encontrada.' })
+    try {
+      const state = pbReady ? (await findDemoLifecycle({ ...pbConfig(), reference: id }))?.snapshot : lifecycles.get(id)
+      if (!state) return respond(res, 404, { error: 'Simulación no encontrada.' })
+      return respond(res, 200, state)
+    } catch { return respond(res, 503, { error: 'Laboratorio PocketBase no disponible.' }) }
   }
   if ((!createPath && !eventPath) || req.method !== 'POST') {
     return respond(res, 404, { error: 'Ruta no disponible.' })
@@ -49,13 +62,22 @@ const server = createServer(async (req, res) => {
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
     if (eventPath) {
       const subscriptionId = String(body.subscriptionId || '')
-      const previous = lifecycles.get(subscriptionId)
-      if (!previous) return respond(res, 404, { error: 'Suscripción ficticia no encontrada.' })
       try {
-        const next = applyDemoEvent(previous, { id: body.eventId, type: body.type })
-        if (!next.duplicated) lifecycles.set(subscriptionId, next)
+        const next = await withIdLock(subscriptionId, async () => {
+          const stored = pbReady ? await findDemoLifecycle({ ...pbConfig(), reference: subscriptionId }) : null
+          const previous = pbReady ? stored?.snapshot : lifecycles.get(subscriptionId)
+          if (!previous) return null
+          const nextState = applyDemoEvent(previous, { id: body.eventId, type: body.type })
+          if (!nextState.duplicated) {
+            if (pbReady) await writeDemoLifecycle({ ...pbConfig(), recordId: stored.recordId, snapshot: nextState })
+            lifecycles.set(subscriptionId, nextState)
+          }
+          return nextState
+        })
+        if (!next) return respond(res, 404, { error: 'Suscripción ficticia no encontrada.' })
         return respond(res, 200, { ...next, cargo_realizado: false, acceso_activado: false })
       } catch (error) {
+        if (/PocketBase|laboratorio|Snapshot/.test(error.message)) return respond(res, 503, { error: 'Persistencia de laboratorio no disponible.' })
         return respond(res, 409, { error: error.message })
       }
     }
