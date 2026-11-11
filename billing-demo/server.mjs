@@ -1,11 +1,14 @@
-// Simulador aislado: sin Mercado Pago, sin PocketBase, sin WhatsApp y sin cobros.
+// Simulador aislado: sin Mercado Pago, WhatsApp ni cobros. PocketBase local solo opt-in.
 // Ejecutar únicamente en un entorno de desarrollo local.
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
+import { buildDemoSubscription, saveDemoSubscription } from './pocketbase-adapter.mjs'
 
 const host = '127.0.0.1'
 const port = Number(process.env.BILLING_DEMO_PORT || 8787)
 const records = new Map()
+const pbReady = process.env.BILLING_DEMO_PB_WRITE === '1' && Boolean(process.env.BILLING_DEMO_PB_URL && process.env.BILLING_DEMO_PB_TOKEN)
+if (process.env.BILLING_DEMO_PB_WRITE === '1' && !pbReady) throw new Error('Configuración incompleta de PocketBase de laboratorio')
 const maxBody = 12_000
 
 const respond = (res, status, value) => {
@@ -41,7 +44,16 @@ const server = createServer(async (req, res) => {
     }
     // Datos solo en memoria. No se devuelven datos personales.
     const id = randomUUID()
-    records.set(id, { state: 'demo_pendiente', amount_centavos: 29900, currency: 'MXN' })
+    const record = buildDemoSubscription({ id })
+    if (pbReady) {
+      if (!email.endsWith('.test')) return respond(res, 400, { error: 'El laboratorio admite únicamente emails ficticios .test.' })
+      try {
+        await saveDemoSubscription({ url: process.env.BILLING_DEMO_PB_URL, token: process.env.BILLING_DEMO_PB_TOKEN, record })
+      } catch {
+        return respond(res, 503, { error: 'PocketBase de laboratorio no disponible.' })
+      }
+    }
+    records.set(id, record)
     return respond(res, 201, { id, estado: 'demo_pendiente', monto_centavos: 29900, moneda: 'MXN', cargo_realizado: false, acceso_activado: false })
   } catch {
     return respond(res, 400, { error: 'JSON inválido.' })
