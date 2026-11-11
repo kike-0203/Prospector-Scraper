@@ -72,7 +72,7 @@ export default function ContratarDemo() {
         </div>
         <div className="sales-price-card">
           <strong>Plan Prospector</strong>
-          <div className="sales-price">$${PRICE_MXN} <small>MXN / mes</small></div>
+          <div className="sales-price">${PRICE_MXN} <small>MXN / mes</small></div>
           <p>Sin cobro de instalación.</p>
           <ul><li>Modelo de suscripción mensual</li><li>Configuración básica por definir</li><li>Cancelación y soporte según condiciones publicadas</li></ul>
           <a className="sales-cta" href="#contratar">Continuar en demostración</a>
