@@ -3,10 +3,12 @@
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { buildDemoSubscription, saveDemoSubscription } from './pocketbase-adapter.mjs'
+import { createDemoLifecycle, applyDemoEvent } from './lifecycle.mjs'
 
 const host = '127.0.0.1'
 const port = Number(process.env.BILLING_DEMO_PORT || 8787)
 const records = new Map()
+const lifecycles = new Map()
 const pbReady = process.env.BILLING_DEMO_PB_WRITE === '1' && Boolean(process.env.BILLING_DEMO_PB_URL && process.env.BILLING_DEMO_PB_TOKEN)
 if (process.env.BILLING_DEMO_PB_WRITE === '1' && !pbReady) throw new Error('Configuración incompleta de PocketBase de laboratorio')
 const maxBody = 12_000
@@ -26,7 +28,15 @@ const server = createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end() }
-  if (req.url !== '/api/billing/demo/subscriptions' || req.method !== 'POST') {
+  const createPath = req.url === '/api/billing/demo/subscriptions'
+  const eventPath = req.url === '/api/billing/demo/events'
+  const statePath = req.url?.startsWith('/api/billing/demo/state/')
+  if (req.method === 'GET' && statePath) {
+    const id = req.url.slice('/api/billing/demo/state/'.length)
+    if (!/^[a-f0-9-]{36}$/.test(id) || !lifecycles.has(id)) return respond(res, 404, { error: 'Simulación no encontrada.' })
+    return respond(res, 200, lifecycles.get(id))
+  }
+  if ((!createPath && !eventPath) || req.method !== 'POST') {
     return respond(res, 404, { error: 'Ruta no disponible.' })
   }
   let size = 0; const chunks = []
@@ -37,6 +47,18 @@ const server = createServer(async (req, res) => {
       chunks.push(chunk)
     }
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    if (eventPath) {
+      const subscriptionId = String(body.subscriptionId || '')
+      const previous = lifecycles.get(subscriptionId)
+      if (!previous) return respond(res, 404, { error: 'Suscripción ficticia no encontrada.' })
+      try {
+        const next = applyDemoEvent(previous, { id: body.eventId, type: body.type })
+        if (!next.duplicated) lifecycles.set(subscriptionId, next)
+        return respond(res, 200, { ...next, cargo_realizado: false, acceso_activado: false })
+      } catch (error) {
+        return respond(res, 409, { error: error.message })
+      }
+    }
     const email = String(body.email || '').trim()
     const negocio = String(body.negocio || '').trim()
     if (!negocio || negocio.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -54,6 +76,7 @@ const server = createServer(async (req, res) => {
       }
     }
     records.set(id, record)
+    lifecycles.set(id, createDemoLifecycle(id))
     return respond(res, 201, { id, estado: 'demo_pendiente', monto_centavos: 29900, moneda: 'MXN', cargo_realizado: false, acceso_activado: false })
   } catch {
     return respond(res, 400, { error: 'JSON inválido.' })
