@@ -1,0 +1,129 @@
+// Simulador aislado: sin Mercado Pago, WhatsApp ni cobros. PocketBase local solo opt-in.
+// Ejecutar únicamente en un entorno de desarrollo local.
+import { createServer } from 'node:http'
+import { randomUUID } from 'node:crypto'
+import { buildDemoSubscription, saveDemoSubscription, findDemoLifecycle, writeDemoLifecycle } from './pocketbase-adapter.mjs'
+import { createDemoLifecycle, applyDemoEvent } from './lifecycle.mjs'
+import { verifyMpWebhook } from './mercadopago-webhook.mjs'
+
+const host = '127.0.0.1'
+const port = Number(process.env.BILLING_DEMO_PORT || 8787)
+const records = new Map()
+const lifecycles = new Map()
+const locks = new Map()
+function withIdLock(id, work) {
+  const last = locks.get(id) || Promise.resolve()
+  const next = last.catch(() => {}).then(work)
+  locks.set(id, next)
+  next.finally(() => { if (locks.get(id) === next) locks.delete(id) }).catch(() => {})
+  return next
+}
+const pbConfig = () => ({ url: process.env.BILLING_DEMO_PB_URL, token: process.env.BILLING_DEMO_PB_TOKEN })
+const pbReady = process.env.BILLING_DEMO_PB_WRITE === '1' && Boolean(process.env.BILLING_DEMO_PB_URL && process.env.BILLING_DEMO_PB_TOKEN)
+if (process.env.BILLING_DEMO_PB_WRITE === '1' && !pbReady) throw new Error('Configuración incompleta de PocketBase de laboratorio')
+const maxBody = 12_000
+
+const respond = (res, status, value) => {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
+  res.end(JSON.stringify(value))
+}
+
+const server = createServer(async (req, res) => {
+  const origin = req.headers.origin || ''
+  if (origin && !/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+    return respond(res, 403, { error: 'Solo orígenes locales de desarrollo.' })
+  }
+  if (origin) res.setHeader('Access-Control-Allow-Origin', origin)
+  res.setHeader('Vary', 'Origin')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  if (req.method === 'OPTIONS') { res.writeHead(204); return res.end() }
+  const createPath = req.url === '/api/billing/demo/subscriptions'
+  const eventPath = req.url === '/api/billing/demo/events'
+  const localWebhookPath = req.url?.startsWith('/api/billing/demo/mp-webhook?')
+  const statePath = req.url?.startsWith('/api/billing/demo/state/')
+  if (req.method === 'GET' && statePath) {
+    const id = req.url.slice('/api/billing/demo/state/'.length)
+    if (!/^[a-f0-9-]{36}$/.test(id)) return respond(res, 404, { error: 'Simulación no encontrada.' })
+    try {
+      const state = pbReady ? (await findDemoLifecycle({ ...pbConfig(), reference: id }))?.snapshot : lifecycles.get(id)
+      if (!state) return respond(res, 404, { error: 'Simulación no encontrada.' })
+      return respond(res, 200, state)
+    } catch { return respond(res, 503, { error: 'Laboratorio PocketBase no disponible.' }) }
+  }
+  if ((!createPath && !eventPath && !localWebhookPath) || req.method !== 'POST') {
+    return respond(res, 404, { error: 'Ruta no disponible.' })
+  }
+  let size = 0; const chunks = []
+  try {
+    for await (const chunk of req) {
+      size += chunk.length
+      if (size > maxBody) return respond(res, 413, { error: 'Solicitud demasiado grande.' })
+      chunks.push(chunk)
+    }
+    if (localWebhookPath) {
+      // Endpoint local de laboratorio: no procesa pagos ni activa servicios.
+      const secret = process.env.BILLING_DEMO_MP_WEBHOOK_SECRET
+      if (!secret) return respond(res, 503, { error: 'Secreto de demostración no configurado.' })
+      const resourceId = new URL(req.url, 'http://localhost').searchParams.get('data.id')
+      const accepted = verifyMpWebhook({
+        secret, signature: req.headers['x-signature'],
+        requestId: req.headers['x-request-id'], dataId: resourceId,
+      })
+      if (!accepted) return respond(res, 401, { error: 'Firma inválida.' })
+      let notification
+      try { notification = JSON.parse(Buffer.concat(chunks).toString('utf8')) } catch {
+        return respond(res, 400, { error: 'Notificación JSON inválida.' })
+      }
+      if (String(notification?.data?.id || '').toLowerCase() !== String(resourceId || '').toLowerCase() ||
+          !['payment', 'subscription_preapproval', 'subscription_authorized_payment'].includes(notification.type)) {
+        return respond(res, 422, { error: 'Notificación inconsistente.' })
+      }
+      return respond(res, 202, { accepted_for_test: true, charge_confirmed: false, service_activated: false })
+    }
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    if (eventPath) {
+      const subscriptionId = String(body.subscriptionId || '')
+      try {
+        const next = await withIdLock(subscriptionId, async () => {
+          const stored = pbReady ? await findDemoLifecycle({ ...pbConfig(), reference: subscriptionId }) : null
+          const previous = pbReady ? stored?.snapshot : lifecycles.get(subscriptionId)
+          if (!previous) return null
+          const nextState = applyDemoEvent(previous, { id: body.eventId, type: body.type })
+          if (!nextState.duplicated) {
+            if (pbReady) await writeDemoLifecycle({ ...pbConfig(), recordId: stored.recordId, snapshot: nextState })
+            lifecycles.set(subscriptionId, nextState)
+          }
+          return nextState
+        })
+        if (!next) return respond(res, 404, { error: 'Suscripción ficticia no encontrada.' })
+        return respond(res, 200, { ...next, cargo_realizado: false, acceso_activado: false })
+      } catch (error) {
+        if (/PocketBase|laboratorio|Snapshot/.test(error.message)) return respond(res, 503, { error: 'Persistencia de laboratorio no disponible.' })
+        return respond(res, 409, { error: error.message })
+      }
+    }
+    const email = String(body.email || '').trim()
+    const negocio = String(body.negocio || '').trim()
+    if (!negocio || negocio.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return respond(res, 400, { error: 'Datos de demostración no válidos.' })
+    }
+    // Datos solo en memoria. No se devuelven datos personales.
+    const id = randomUUID()
+    const record = buildDemoSubscription({ id })
+    if (pbReady) {
+      if (!email.endsWith('.test')) return respond(res, 400, { error: 'El laboratorio admite únicamente emails ficticios .test.' })
+      try {
+        await saveDemoSubscription({ url: process.env.BILLING_DEMO_PB_URL, token: process.env.BILLING_DEMO_PB_TOKEN, record })
+      } catch {
+        return respond(res, 503, { error: 'PocketBase de laboratorio no disponible.' })
+      }
+    }
+    records.set(id, record)
+    lifecycles.set(id, createDemoLifecycle(id))
+    return respond(res, 201, { id, estado: 'demo_pendiente', monto_centavos: 29900, moneda: 'MXN', cargo_realizado: false, acceso_activado: false })
+  } catch {
+    return respond(res, 400, { error: 'JSON inválido.' })
+  }
+})
+server.listen(port, host, () => console.log(`Simulador sin cobros: http://${host}:${port}`))
