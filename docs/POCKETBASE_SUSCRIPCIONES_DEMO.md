@@ -12,6 +12,7 @@ Crear manualmente en una **instancia PocketBase de laboratorio aislada** una col
 - `estado`: text, required
 - `pago_confirmado`: bool
 - `acceso_activado`: bool
+- `snapshot_json`: json, historial ficticio de eventos e identificadores usados
 
 No guardar nombre, correo, teléfono ni referencias de leads reales en la demo. El token de acceso debe quedarse en el servidor, nunca en `VITE_*`.
 
@@ -37,3 +38,14 @@ Documentación:
 - https://www.mercadopago.com.mx/developers/es/docs/subscriptions/subscription-management
 - https://www.mercadopago.com.mx/developers/es/docs/woocomerce/additional-content/your-integrations/notifications/webhooks
 - https://pocketbase.io/docs/api-records/
+
+## Validación automatizada con PocketBase real
+
+El workflow `.github/workflows/billing-demo-validation.yml` descarga PocketBase **v0.38.0** en un runner efímero de GitHub Actions, crea `pb_data` totalmente nuevo y lo elimina al terminar. Valida:
+- creación de la colección con reglas cerradas y un identificador único;
+- guardado de una solicitud de prueba de $299 MXN sin cobro;
+- recuperación tras reiniciar el proceso PocketBase;
+- aprobación ficticia, reinicio de la API, relectura del snapshot, rechazo de duplicados, cancelación y segundo reinicio;
+- permanencia de `charged=false` y `liveAccess=false`.
+
+**Limitación deliberada:** las actualizaciones de eventos se serializan solo dentro de un proceso Node. No hay control de concurrencia multiinstancia, pagos reales, reintentos de webhooks externos ni verificación criptográfica. Los snapshots JSON y el token de laboratorio no deben reutilizarse como arquitectura final de facturación. La prueba no despliega nada en nuestros servidores.
