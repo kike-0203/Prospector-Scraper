@@ -70,6 +70,7 @@ test('PocketBase real: guarda registros ficticios y los recupera después de rei
     { name: 'estado', type: 'text', required: true },
     { name: 'pago_confirmado', type: 'bool' },
     { name: 'acceso_activado', type: 'bool' },
+    { name: 'snapshot_json', type: 'json' },
   ]
   const collectionResponse = await fetch(base + '/api/collections', {
     method: 'POST', headers,
@@ -103,4 +104,61 @@ test('PocketBase real: guarda registros ficticios y los recupera después de rei
   assert.equal(saved.estado, 'demo_pendiente')
   assert.equal(saved.pago_confirmado, false)
   assert.equal(saved.acceso_activado, false)
+  assert.equal(saved.snapshot_json.state, 'demo_pendiente')
+
+  // API de facturación ficticia: persistencia de eventos entre reinicios.
+  const demoPort = port + 1100
+  const demoBase = 'http://127.0.0.1:' + demoPort + '/api/billing/demo'
+  let demoProcess
+  const startDemo = async () => {
+    demoProcess = spawn(process.execPath, [join(process.cwd(), 'billing-demo/server.mjs')], {
+      env: {
+        ...process.env, BILLING_DEMO_PORT: String(demoPort), BILLING_DEMO_PB_WRITE: '1',
+        BILLING_DEMO_PB_URL: base, BILLING_DEMO_PB_TOKEN: token,
+      }, stdio: 'ignore',
+    })
+    for (let i = 0; i < 40; i++) {
+      try {
+        const probe = await fetch(demoBase + '/state/invalid')
+        if (probe.status === 404) return
+      } catch {}
+      await pause(100)
+    }
+    throw new Error('API demo no inició')
+  }
+  t.after(async () => stop(demoProcess))
+  await startDemo()
+  const postDemo = async (endpoint, payload) => {
+    const response = await fetch(demoBase + endpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    })
+    return { status: response.status, body: await response.json() }
+  }
+  const subscription = await postDemo('/subscriptions', { negocio: 'Laboratorio', email: 'test@example.test' })
+  assert.equal(subscription.status, 201, JSON.stringify(subscription.body))
+  const subId = subscription.body.id
+  const approval = await postDemo('/events', { subscriptionId: subId, eventId: 'test_demo_approval', type: 'demo.payment_approved' })
+  assert.equal(approval.status, 200, JSON.stringify(approval.body))
+  assert.equal(approval.body.state, 'demo_activa')
+  await stop(demoProcess)
+  await startDemo()
+  const afterRestart = await fetch(demoBase + '/state/' + subId)
+  assert.equal(afterRestart.status, 200)
+  const reloaded = await afterRestart.json()
+  assert.equal(reloaded.state, 'demo_activa')
+  assert.equal(reloaded.paidCycles, 1)
+  const duplicate = await postDemo('/events', { subscriptionId: subId, eventId: 'test_demo_approval', type: 'demo.payment_approved' })
+  assert.equal(duplicate.status, 200)
+  assert.equal(duplicate.body.duplicated, true)
+  assert.equal(duplicate.body.paidCycles, 1)
+  const cancellation = await postDemo('/events', { subscriptionId: subId, eventId: 'test_demo_cancel_1', type: 'demo.cancel' })
+  assert.equal(cancellation.status, 200)
+  assert.equal(cancellation.body.state, 'demo_cancelada')
+  await stop(demoProcess)
+  await startDemo()
+  const finalResponse = await fetch(demoBase + '/state/' + subId)
+  const finalState = await finalResponse.json()
+  assert.equal(finalState.state, 'demo_cancelada')
+  assert.equal(finalState.liveAccess, false)
+  assert.equal(finalState.charged, false)
 })
