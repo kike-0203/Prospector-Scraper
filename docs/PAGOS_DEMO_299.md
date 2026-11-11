@@ -4,8 +4,8 @@
 - Plan único de **$299 MXN por mes**, sin cuota de instalación; precio tentativo.
 - Landing pública en `/contratar` dentro del frontend Vite existente. Las rutas restantes siguen mostrando la aplicación interna sin cambios funcionales.
 - Formulario de **demostración** con validación básica. No captura tarjeta ni hace cobros.
-- Simulador opcional de API en `billing-demo/server.mjs`, sin Mercado Pago, PocketBase, WAHA ni n8n.
-- No hay acceso activado, cuentas creadas ni datos de clientes persistidos. El simulador guarda únicamente estados ficticios en memoria.
+- Simulador opcional de API en `billing-demo/server.mjs`, sin Mercado Pago, WAHA ni n8n; permite escritura ficticia a un PocketBase **local de laboratorio aislado** solo con configuración explícita.
+- No hay acceso activado ni cuentas creadas. Por defecto el simulador guarda únicamente estados ficticios en memoria; opcionalmente persiste registros ficticios no personales en `suscripciones_demo` de un PocketBase local separado.
 
 ## Probar localmente
 1. En `web/`, instalar dependencias según el README existente e iniciar Vite.
@@ -32,3 +32,7 @@ Referencias:
 - https://www.mercadopago.com.mx/developers/es/reference/online-payments/subscriptions/create-preapproval/post
 - https://www.mercadopago.com.mx/developers/es/docs/subscriptions/subscription-management
 - https://www.mercadopago.com.mx/developers/es/docs/adobe-commerce/resources/notifications/webhooks
+
+
+## Extensión de laboratorio
+Consulta `docs/POCKETBASE_SUSCRIPCIONES_DEMO.md`. El contrato de Mercado Pago en `billing-demo/mercadopago-contract.mjs` permanece deshabilitado: no crea suscripciones ni pagos con el proveedor.
