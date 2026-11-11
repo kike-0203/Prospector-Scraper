@@ -1,0 +1,32 @@
+name: Validate Prospector billing demo
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'billing-demo/**'
+      - '.github/workflows/billing-demo-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  demo-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+      - name: Build frontend production bundle
+        working-directory: web
+        run: npm run build
+      - name: Test demo billing API and frontend route
+        run: node --test billing-demo/*.test.mjs
