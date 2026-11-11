@@ -5,6 +5,7 @@ on:
     paths:
       - 'web/**'
       - 'billing-demo/**'
+      - 'billing-webhook-test/**'
       - '.github/workflows/billing-demo-validation.yml'
   workflow_dispatch:
 
@@ -30,6 +31,8 @@ jobs:
         run: npm run build
       - name: Test demo billing API and frontend route
         run: node --test billing-demo/*.test.mjs
+      - name: Test isolated signed webhook receiver
+        run: node --test billing-webhook-test/*.test.mjs
       - name: Download isolated PocketBase v0.38.0 for integration test
         run: |
           curl -fLSs --retry 3 -o /tmp/pocketbase.zip https://github.com/pocketbase/pocketbase/releases/download/v0.38.0/pocketbase_0.38.0_linux_amd64.zip
